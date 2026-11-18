@@ -29,8 +29,8 @@ const dom = new JSDOM(html, {
     // JSZip в браузере ждёт события postMessage с source === window, а jsdom source не заполняет:
     // даём ему setImmediate, иначе разбор архива не завершится.
     window.setImmediate = (fn, ...a) => window.setTimeout(fn, 0, ...a); window.clearImmediate = (id) => window.clearTimeout(id);
-    // Подставляем только «скачивание», чтобы поймать исправленный файл. ИИ здесь не подключён.
-    window.claude = { use: async (name) => name === "downloads" ? { save: async ({ filename, data }) => { saved.push({ filename, data }); } } : null };
+    // Ловим исправленный файл: страница сохраняет через state.downloads.save (см. src/js/40-ui.js). ИИ здесь не подключён.
+    window.__qalypSave = (o) => { saved.push(o); };
   },
 });
 const w = dom.window;
@@ -50,16 +50,15 @@ async function load(buf, name) {
 }
 
 await waitFor("typeof state !== 'undefined' && !!state.R");
-await sleep(200); // даём отработать инициализации window.claude
 if (profileId) { ev(`state.pid = ${JSON.stringify(profileId)}; renderProfiles(); recheck()`); }
 if (docxPath) await load(fs.readFileSync(docxPath), path.basename(docxPath));
 const before = snapshot();
 
 let after = null, fixedName = null;
-await waitFor("!!state.downloads", 12000).catch(() => {});
-if (ev("!!state.downloads")) {
+{
+  ev("state.downloads = { save: async (o) => window.__qalypSave(o) }");
   await ev("fixDocx()");
-  await sleep(300);
+  await sleep(50);
   if (saved.length) {
     const { filename, data } = saved[saved.length - 1];
     const ab = await new Promise((res, rej) => { const fr = new w.FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsArrayBuffer(data); });

@@ -24,6 +24,30 @@
 
 Все `src/js/*.js` склеиваются в один `<script>` в общей области видимости (не модули). Порядок — по имени файла.
 
+## Общие договорённости между модулями
+
+- `shared/code-params.json` — реестр параметров, которые проверяет код. Сборка превращает его в глобальную `CODE_PARAMS` в браузере; сервер читает тот же файл. Поля: `t` (number|enum|string|bool|list), `min`, `max`, `int`, `of`, `field` (путь к полю профиля), `alt`/`rangeMin`/`rangeMax` (поля профиля для вариантов и диапазона), `label`. Владелец — разбор и проверки (`10-profiles.js`), остальные только читают.
+- Абзац из `analyze()` (`state.A.paras[i]`) дополнительно к старым полям имеет:
+  - `nonText: bool` — в абзаце есть содержимое без текста: формула (`m:oMath`, `m:oMathPara`), объект (`w:object`), символ (`w:sym`), рисунок, сноска, поле. Такой абзац не «пустой», и автоисправление его не удаляет.
+  - `hidden: string` — скрытый текст абзаца (`w:vanish`, кегль ≤ 2 пт, белый цвет на белом). В ИИ уходит только видимый текст: `visibleText(p)`.
+- `state.A.hiddenText` — весь скрытый текст документа (для предупреждения «Скрытый текст»).
+- `fixDocx()` после исправления пишет `state.fixLog = [{ title, count }]` — что и сколько раз изменено. Интерфейс показывает его рядом с кнопкой.
+- `server/refs.js` экспортирует `lookupRefs(refs) → Promise<items>` и `createRefsRouter()` (express.Router c `POST /lookup`). `server/index.js` монтирует его на `/api/refs`.
+- `server/ai.js` экспортирует `extractRules(text)`, `checkContent({...})`, `assessRefs(refs)` — те же функции, что за API, для скриптов замера в `eval/`.
+
+### Поля разбора и проверки (версия 2, описаны по коду `20-docx.js` и `30-checks.js`)
+
+- `analyze()` → `state.A`: кроме `paras`, `margins`, `page`, `pn`, `hiddenText`, `words` —
+  - `sections: [{ idx, page: { w, h } мм, landscape, margins: { left, right, top, bottom, gutter } мм, titlePg, type, pn: { where: "top"|"bottom"|null, align }, firstNum, counts: { <region>: n }, main, content }]` — все `w:sectPr` по порядку; колонтитулы наследуются от предыдущего раздела;
+  - `mainSect` — `idx` раздела, где больше всего основного текста (из него берутся `margins`, `page`, `pn`);
+  - `titleNum: true|false|null` — стоит ли номер на титульном листе (`null` — титула нет);
+  - `footnotes` — число сносок в `footnotes.xml`, `footnoteRefs` — число ссылок на сноски в тексте.
+- Абзац `state.A.paras[i]`, кроме `nonText` и `hidden`: `vis` (видимый текст без краёв), `shown` (с учётом `w:caps`), `tocLine` (строка оглавления), `refSub` (подзаголовок в списке источников), `list` (пункт автосписка), `math`, `drawingInline`, `box` (текст надписи), `sect` (номер раздела), `refsTail` (абзац после списка источников, который страховка отнесла к приложениям); `caption ∈ "fig"|"tbl"|"tblcont"|"tbltitle"`; `align` нормализован в `left|right|center|both`.
+- Находка `R.findings[i]`: `{ cat, sev, title, detail, where, fix, key, n?, share? }` — `key` вид находки (по нему считается балл), `n` сколько штук, `share` доля неверных абзацев.
+- `runChecks()` дополнительно возвращает `penalties: [{ key, title, n, penalty }]` (разбор балла, `docs/SCORING.md`) и `coverage: { bodyParas, intro, refs, citations, footnotes, hiddenChars, listParas, notChecked: [string] }` — что проверено и чего код не проверяет; интерфейс показывает `notChecked` под таблицей параметров и в протоколе.
+- В `R.params` бывает `sev: "warn"` с `got: "не проверено"` (основной текст не найден).
+- Глобальные функции для всех модулей: `visibleText(p)`, `valueOk(def, v)`, `fontOk(P, font)`, `sizeOk(P, size)`, `sizeNeed(P)`, `profileFonts(P)`, `scoreOf(findings)`, подписи положений номера `PAGE_NUM_RU`.
+
 ## Главный принцип
 
 **ИИ читает, код измеряет, решает человек.**

@@ -9,18 +9,20 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 export const ROOT = root;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function loadApp({ html = path.join(root, "public", "index.html"), fetchImpl = null, claude = undefined, onError = null } = {}) {
+export async function loadApp({ html = path.join(root, "public", "index.html"), fetchImpl = null, claude = undefined, onError = null, url = "http://qalyp.test/" } = {}) {
   let src = fs.readFileSync(html, "utf8");
   const jszipSrc = fs.readFileSync(path.join(root, "node_modules", "jszip", "dist", "jszip.min.js"), "utf8");
   // CDN заменяем локальной копией той же версии, чтобы тесты не зависели от сети
   src = src.replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/[^"]+"[^>]*><\/script>/, () => `<script>${jszipSrc}</script>`);
   src = src.replace(/<script src="\/vendor\/jszip[^"]*"[^>]*><\/script>/, () => `<script>${jszipSrc}</script>`);
-  const errors = [];
+  const errors = [];          // ошибки скриптов страницы (jsdomError)
+  const consoleErrors = [];   // console.error со страницы
   const vc = new VirtualConsole();
   vc.on("jsdomError", (e) => { errors.push(e); onError && onError(e); });
+  vc.on("error", (...a) => { consoleErrors.push(a.map(String).join(" ")); });
   const saved = [];
   const dom = new JSDOM(src, {
-    runScripts: "dangerously", pretendToBeVisual: true, url: "http://qalyp.test/", virtualConsole: vc,
+    runScripts: "dangerously", pretendToBeVisual: true, url, virtualConsole: vc,
     beforeParse(w) {
       // JSZip ждёт postMessage с source === window, jsdom его не заполняет
       w.setImmediate = (fn, ...a) => w.setTimeout(fn, 0, ...a); w.clearImmediate = (id) => w.clearTimeout(id);
@@ -39,7 +41,7 @@ export async function loadApp({ html = path.join(root, "public", "index.html"), 
   }
   await waitFor("typeof state !== 'undefined' && !!state.R");
   const app = {
-    window: w, document: w.document, errors, saved, ev, waitFor,
+    window: w, document: w.document, errors, consoleErrors, saved, ev, waitFor,
     async load(buf, name = "test.docx") {
       w.__buf = buf.buffer ? buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) : buf;
       ev(`state.R = null; process(window.__buf, ${JSON.stringify(name)})`);
