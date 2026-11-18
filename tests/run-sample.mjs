@@ -17,8 +17,10 @@ if (!htmlPath) { console.error("Нужен путь к HTML"); process.exit(2); 
 
 let html = fs.readFileSync(htmlPath, "utf8");
 const jszipSrc = fs.readFileSync(path.join(here, "..", "node_modules/jszip/dist/jszip.min.js"), "utf8");
-// CDN заменяем на локальную копию той же версии JSZip, чтобы прогон не зависел от сети.
-html = html.replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/[^"]+"><\/script>/, () => `<script>${jszipSrc}</script>`);
+// JSZip встраиваем из node_modules, чтобы прогон не зависел от сети и от сервера Qalyp
+// (так же, как tests/lib/app.mjs): и тег cdnjs из старых страниц, и тег /vendor/jszip.min.js.
+html = html.replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/[^"]+"[^>]*><\/script>/, () => `<script>${jszipSrc}</script>`);
+html = html.replace(/<script src="\/vendor\/jszip[^"]*"[^>]*><\/script>/, () => `<script>${jszipSrc}</script>`);
 
 const saved = [];
 const dom = new JSDOM(html, {

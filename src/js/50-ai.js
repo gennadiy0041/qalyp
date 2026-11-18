@@ -31,7 +31,7 @@ const API_ERRORS = {
   bad_request: "Сервер не принял запрос. Повтор без изменений не поможет.",
   too_large: "Текст слишком большой для проверки. Повтор не поможет: сократите текст.",
   rate_limited: "Слишком много запросов подряд. Подождите несколько минут и запустите снова.",
-  daily_limit: "Дневной лимит ИИ-проверок на сервере исчерпан. Проверка оформления работает, ИИ-проверка будет доступна завтра.",
+  daily_limit: "Дневной лимит ИИ-проверок на сервере исчерпан. Проверка оформления работает.",
   ai_unavailable: "ИИ на сервере не подключён. Проверка оформления работает.",
   ai_refused: "ИИ отказался разбирать этот текст. Повтор не поможет — проверьте этот раздел вручную.",
   ai_bad_answer: "ИИ ответил не по форме, программа отбросила ответ. Можно запустить ещё раз; если повторится — проверьте вручную.",
@@ -44,6 +44,9 @@ const API_ERRORS = {
 function apiErrorText(e) {
   const c = e && e.code, t = API_ERRORS[c];
   if (t && (c === "bad_request" || c === "rate_limited") && e.apiMessage) return `${t} Сервер: ${e.apiMessage}`;
+  // суточных лимитов на сервере несколько (все ИИ-проверки, токены, разборы методичек): какой сработал
+  // и когда ИИ снова будет доступен, знает только сервер — показываем его текст
+  if (c === "daily_limit" && e.apiMessage) return e.apiMessage;
   return t || (e && e.apiMessage) || "Не удалось выполнить проверку.";
 }
 
@@ -73,11 +76,11 @@ function aiAvailability() {
 }
 function aiButtonsState() {
   const av = aiAvailability(), running = !!aiCurrent, btn = $("aiRun");
-  btn.disabled = running || !(av.ai || av.lookup) || !state.R;
-  btn.textContent = !av.ai && av.lookup ? "Сверить источники с базами" : "Запустить ИИ-проверку";
+  btn.disabled = running || !(av.ai || av.lookup) || !state.R || !!state.busy;
+  uiSetText(btn, !av.ai && av.lookup ? "Сверить источники с базами" : "Запустить ИИ-проверку");
   $("aiStop").hidden = !running;
-  $("aiStatus").textContent = running ? "Идёт проверка. Её можно остановить."
-    : av.reason || `Тексты уходят на сервер только после вашего согласия.${state.health && state.health.model ? " Модель: " + state.health.model + "." : ""}`;
+  uiSetText($("aiStatus"), running ? "Идёт проверка. Её можно остановить."
+    : av.reason || `Тексты уходят на сервер только после вашего согласия.${state.health && state.health.model ? " Модель: " + state.health.model + "." : ""}`);
 }
 
 // ---------- согласие ----------
@@ -220,10 +223,11 @@ function aiContentBody(d) {
 }
 async function aiRunAll() {
   const av = aiAvailability();
-  if (!(av.ai || av.lookup) || !state.A || !state.R || aiCurrent) return;
+  if (!(av.ai || av.lookup) || !state.A || !state.R || aiCurrent || state.busy) return;
   const docSeq = state.docSeq;
   if (!(await askConsent(av.ai ? "work" : "lookup"))) return;
-  if (docSeq !== state.docSeq || aiCurrent || !state.A) return;
+  // пока человек читал окно согласия, могли открыть другую работу — тогда ничего не отправляем
+  if (docSeq !== state.docSeq || aiCurrent || !state.A || state.busy) return;
   const data = aiCollect(state.A, state.R);
   const run = { id: ++aiSeq, docSeq, ctl: new AbortController(), data };
   aiCurrent = run;
@@ -248,7 +252,10 @@ async function aiRunAll() {
   if (aiCurrent !== run) return;
   aiCurrent = null; state.ai.status = "done";
   aiRender(); renderSummary(); aiButtonsState();
-  uiAnnounce("ИИ-проверка завершена.");
+  // о сбоях говорим один раз здесь: баннеры в отчёте перерисовываются и не должны перечитываться скринридером
+  const failed = [["content", "введение и заключение"], ["refsAi", "ИИ по источникам"], ["lookup", "сверка с базами"]]
+    .filter(([k]) => state.ai[k].state === "error").map(([k, t]) => `${t}: ${apiErrorText(state.ai[k].error)}`);
+  uiAnnounce("ИИ-проверка завершена." + (failed.length ? " Не выполнено — " + failed.join("; ") : ""));
 }
 // reason: "stop" — кнопка «Остановить»; "newdoc" — открыта другая работа (её отчёт ИИ не получит)
 function aiCancel(reason) {
@@ -311,25 +318,35 @@ const AI_REF_STATUS = {
   stopped: { label: "Проверка остановлена", sev: "muted" },
   not_sent: { label: "Не проверялся: в списке больше 300 записей", sev: "muted" },
 };
-// lk — элемент ответа /api/refs/lookup, ai — элемент ответа /api/ai/refs (или null)
+// lk — элемент ответа /api/refs/lookup, ai — элемент ответа /api/ai/refs (или null).
+// Правило выбрано по замеру на 185 записях (eval/refs.mjs, 18.11.2026): «высокий риск» — если база не подтвердила
+// запись и ИИ видит признаки или расхождение с тем, что знает, либо если в базах записи нет и ИИ издание не узнаёт.
+// Без ответа ИИ «высокий риск» не ставится: одной базы для такого вывода мало.
+// Признаки подделки — противоречия внутри записи и с памятью модели. Неполная запись и голая ссылка —
+// дефекты оформления: они ведут к «Проверьте вручную», но не к «высокому риску» (у настоящих студенческих
+// списков их много).
+const AI_FAKE_SIGNS = ["mismatch", "memory_conflict", "future", "not_source"];
 function aiRefStatus(lk, ai) {
   const flags = ai && Array.isArray(ai.flags) ? ai.flags : [];
   const st = lk && lk.status;
+  const signal = flags.some((f) => AI_FAKE_SIGNS.includes(f)) || (ai && ai.recognized === "yes_conflict");
+  const knows = ai && ai.recognized === "yes_matches";
   if (st === "confirmed") return "found";
   if (st === "similar") return "similar";
   if (st === "not_found") {
-    if (flags.length || (ai && ai.recognized === "yes_conflict")) return "high";
-    if (ai && ai.recognized === "yes_matches") return "ai_knows";
-    return "not_found";
+    if (!ai) return "not_found";
+    if (signal || !knows) return "high";
+    return "ai_knows";
   }
-  if (st === "not_checkable") return flags.length ? "manual" : "not_checkable";
-  return flags.length ? "manual" : "lookup_error";
+  if (signal) return "high";
+  if (ai && (!knows || flags.length)) return "manual";
+  return st === "not_checkable" ? "not_checkable" : ai ? "not_checkable" : "lookup_error";
 }
 function aiRefLabel(key, ai) {
   const base = AI_REF_STATUS[key].label;
   if (key !== "manual") return base;
   const why = (ai && ai.note) || (ai ? ai.flags.map((f) => AI_FLAGS[f]).join("; ") : "");
-  return why ? `${base}: ${why}` : base;
+  return why ? `${base}: ${why}` : `${base}: автоматически не подтверждается, ИИ издание не узнаёт`;
 }
 function aiGuessTitle(t) {
   let s = String(t || "").replace(/\s+/g, " ").trim();
@@ -358,10 +375,13 @@ function aiRefRows() {
 const AI_INTRO_ST = { found: ["Есть", "ok"], not_found: ["Не найдено", "err"], unclear: ["Неясно — посмотрите сами", "warn"] };
 const AI_TASK_ST = { answered: ["Есть вывод", "ok"], partly: ["Частично", "warn"], not_answered: ["Нет вывода", "err"], unclear: ["Неясно — посмотрите сами", "warn"] };
 const aiThinking = (t) => `<div class="thinking"><span class="dot" aria-hidden="true"></span>${esc(t)}</div>`;
+// Сервер отдаёт cached: true, если ответ ИИ взят из его кеша (такой же запрос уже был) — говорим об этом прямо
+const AI_CACHED_NOTE = "ответ из кеша сервера: такой же запрос уже выполнялся";
+const aiCachedHtml = (j, prefix = "") => (uiIsObj(j) && j.cached === true ? `<p class="note cached">${esc(prefix + AI_CACHED_NOTE)}</p>` : "");
 function aiPartState(p, what) {
   if (p.state === "pending") return aiThinking(what);
   if (p.state === "stopped") return `<p class="note">Остановлено.</p>`;
-  if (p.state === "error") return `<div class="banner err" role="alert">${esc(apiErrorText(p.error))}</div>`;
+  if (p.state === "error") return `<div class="banner err">${esc(apiErrorText(p.error))}</div>`;
   return "";
 }
 function aiContentCounts() {
@@ -379,13 +399,13 @@ function aiContentHtml() {
   const j = aiNormContent(c.data);
   const cutNote = [d.introCut ? `введение длиннее ${AI_LIMITS.introChars} знаков — ИИ получил начало` : "", d.conclCut ? `заключение длиннее ${AI_LIMITS.conclChars} знаков — ИИ получил начало` : "",
     !d.intro.trim() ? "раздел «Введение» не найден" : "", !d.concl.trim() ? "раздел «Заключение» не найден — ответы на задачи не проверялись" : ""].filter(Boolean);
-  const inj = j.injection.length ? `<div class="banner err" role="alert"><b>В тексте есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет. Посмотрите сами: ${j.injection.map((q) => `<span class="q">${esc(q)}</span>`).join("")}${uiDecideHtml("ai|inj|content", "обращение к ИИ в тексте")}</div>` : "";
+  const inj = j.injection.length ? `<div class="banner err"><b>В тексте есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет. Посмотрите сами: ${j.injection.map((q) => `<span class="q">${esc(q)}</span>`).join("")}${uiDecideHtml("ai|inj|content", "обращение к ИИ в тексте")}</div>` : "";
   const intro = j.intro.length ? `<ul class="crit">${j.intro.map((e) => { const [t, sev] = AI_INTRO_ST[e.status]; const key = "ai|intro|" + e.id;
     return `<li><div class="head"><span class="rstat ${sev}">${esc(t)}</span><b>${esc(e.title)}</b>${/^r\d/.test(e.id) ? `<span class="note">правило методички</span>` : ""}</div>${e.quote ? `<q>${esc(e.quote)}</q>` : ""}${uiDecideHtml(key, e.title)}</li>`; }).join("")}</ul>` : `<p class="note">ИИ не вернул ни одного элемента введения.</p>`;
   const tasks = j.tasks.length ? `<div class="tablewrap"><table><thead><tr><th>Задача из введения</th><th>Вывод в заключении</th><th>Цитата из заключения</th><th>Примечание</th></tr></thead><tbody>${j.tasks.map((t, i) => { const [lab, sev] = AI_TASK_ST[t.status];
     return `<tr><td>${esc(t.task)}${uiDecideHtml("ai|task|" + i, t.task)}</td><td><span class="rstat ${sev}">${esc(lab)}</span></td><td>${t.quote ? `<span class="q">${esc(t.quote)}</span>` : "—"}</td><td>${esc(t.note)}</td></tr>`; }).join("")}</tbody></table></div>`
     : `<p class="note">ИИ не нашёл во введении явного перечня задач.</p>`;
-  return `<section class="ai-part">${head}${inj}
+  return `<section class="ai-part">${head}${aiCachedHtml(c.data)}${inj}
     ${cutNote.length ? `<p class="note">${esc(cutNote.join("; "))}.</p>` : ""}
     <h3 style="font-size:14px">Элементы введения</h3>${intro}
     <h3 style="font-size:14px">Задачи и выводы по ним</h3>${tasks}
@@ -415,10 +435,10 @@ function aiRefsHtml() {
     } else if (r.aiMissing) out.push(`<div class="note">ИИ не ответил по этой записи.</div>`);
     return out.join("");
   };
-  return `<section class="ai-part">${head}
+  return `<section class="ai-part">${head}${a.refsAi.state === "done" ? aiCachedHtml(a.refsAi.data, "Вывод ИИ по записям — ") : ""}
     <div class="banner big"><b>ИИ и базы не решают, существует ли источник.</b> Они отмечают записи, которые стоит открыть и сверить. Решение — за руководителем.</div>
-    ${errs.map((e) => `<div class="banner err" role="alert">${esc(e)}</div>`).join("")}
-    ${inj.length ? `<div class="banner err" role="alert"><b>В списке источников есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет: ${inj.map((q) => `<span class="q">${esc(q)}</span>`).join("")}</div>` : ""}
+    ${errs.map((e) => `<div class="banner err">${esc(e)}</div>`).join("")}
+    ${inj.length ? `<div class="banner err"><b>В списке источников есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет: ${inj.map((q) => `<span class="q">${esc(q)}</span>`).join("")}</div>` : ""}
     ${pending ? aiThinking(`Сверяю ${Math.min(d.refsAll.length, AI_LIMITS.refs)} записей с базами и ИИ…`) : `<p><span class="rstat ${high ? "err" : "muted"}">Высокий риск — проверьте вручную: ${high}</span> <span class="note">Найдены в базах: ${found} из ${rows.length}.</span></p>`}
     <div class="tablewrap"><table><thead><tr><th>№</th><th>№ в тексте</th><th>Источник</th><th>Итог</th><th>Что найдено</th><th>Ссылки</th></tr></thead><tbody>
     ${rows.map((r) => { const dec = state.reviewer && !["pending", "found", "not_checkable", "stopped", "not_sent"].includes(r.key) ? uiDecideHtml("ai|ref|" + r.n, r.shown) : "";

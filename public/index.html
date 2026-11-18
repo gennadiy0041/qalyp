@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=PT+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
-  --ground:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDF0F5; --ink:#141C27; --muted:#586577; --line:#D8DEE7; --ctl-line:#7F8A9C;
+  --ground:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDF0F5; --ink:#141C27; --muted:#586577; --line:#D8DEE7; --ctl-line:#7D889B;
   --accent:#2E47C4; --accent-ink:#FFFFFF; --accent-soft:#E6EAFB;
   --err:#C23A2E; --err-soft:#FBE9E7; --warn:#8F540A; --warn-soft:#FBF1E1; --ok:#2C7A4B; --ok-soft:#E5F3EA;
   --paper:#FFFFFF; --paper-edge:#C9D0DB; --shadow:0 1px 2px rgba(20,28,39,.06),0 8px 24px rgba(20,28,39,.06);
@@ -53,10 +53,20 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;padding:4px 10px;border:1px solid var(--ctl-line);border-radius:999px;background:var(--surface);min-height:30px}
 .switch input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+button.switch[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.pricing{display:grid;gap:6px;margin:0 0 16px}
+.pricing h2{font-size:15px}
+.pricing p{margin:0}
+.pricing ul{margin:0;padding-left:20px;display:grid;gap:2px}
+.nw{white-space:nowrap}
+.note.price{font-size:12px;margin-top:6px}
+.note.cached{font-size:12px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
 @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
 aside{display:grid;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);min-width:0}
+/* Левая колонка «прилипает» к верху экрана и бывает выше него (шаги 1, 2 и «Проверка группы»): своя прокрутка, чтобы низ был виден */
+@media (min-width:861px){aside{max-height:calc(100vh - 24px - env(safe-area-inset-top,0px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}}
 @media (max-width:860px){aside{position:static}}
 .step{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 h2{font-size:17px;margin:0;font-weight:600;text-wrap:balance}
@@ -79,6 +89,12 @@ textarea{font-family:var(--f-doc);font-size:14px;min-height:150px;resize:vertica
 .file{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .file b{color:var(--ink);font-weight:500;overflow-wrap:anywhere}
 .file .bad{color:var(--err)}
+.filebox{display:grid;gap:8px;min-width:0}
+.file-error{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--err-soft);color:var(--ink);overflow-wrap:anywhere}
+.file-error:empty{padding:0;background:none}
+.drop[aria-disabled="true"]{opacity:.55;cursor:default}
+main[data-busy="parse"] > :not(#methodReview):not(#batchOut){opacity:.5}
+main.no-report > :is(#sheetBox,#findings,#manualBox,#aiBox,#docBanners){display:none}
 dl.rules{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:13px}
 dl.rules dt{color:var(--muted)}
 dl.rules dd{margin:0;font-family:var(--f-mono);font-size:12.5px;text-align:right;overflow-wrap:anywhere}
@@ -161,14 +177,14 @@ td.ref{font-family:var(--f-doc);font-size:13.5px;min-width:220px;overflow-wrap:a
 tr.has-decide td{border-bottom:0}
 tr.decide-row td{padding-top:0}
 tr.decide-row .decide{margin-top:0}
-.banner{font-size:13px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink)}
+.banner{font-size:13px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink);overflow-wrap:anywhere;min-width:0}
 .banner b{font-weight:600}
 .banner.warn{background:var(--warn-soft)}
 .banner.err{background:var(--err-soft)}
 .banner.big{font-size:14px;border-left:4px solid var(--accent)}
 .hidden-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .profile-out{display:grid;gap:8px}
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;width:max-content;max-width:calc(100% - 32px);overflow-wrap:anywhere}
 /* экран подтверждения методички */
 .mr-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
 .mr-sum div{background:var(--surface-2);border-radius:8px;padding:8px 10px;display:grid}
@@ -202,6 +218,8 @@ fieldset.conflict label{color:var(--ink);display:flex;gap:8px;align-items:flex-s
 .proto-doc h1{font-family:var(--f-display);font-size:20px;margin:0}
 .proto-doc h2{font-size:16px;margin-top:6px}
 .proto-doc table{font-size:13px}
+.proto-doc td{overflow-wrap:anywhere}
+@media (max-width:640px){.protocol{padding:16px}}
 .proto-meta th{width:180px;color:var(--muted)}
 .proto-stamp{font-weight:600;border:2px solid currentColor;border-radius:6px;padding:8px 12px;margin:0;justify-self:start}
 .sign{margin-top:24px;display:grid;gap:18px;font-size:14px}
@@ -210,7 +228,7 @@ body.show-protocol .grid{display:none}
 @media print{
   :root,:root[data-theme="dark"]{--ground:#fff;--surface:#fff;--surface-2:#f2f2f2;--ink:#000;--muted:#444;--line:#999;--accent:#000;--accent-soft:#eee;--err:#000;--err-soft:#fff;--warn:#000;--warn-soft:#fff;--ok:#000;--ok-soft:#fff}
   body{background:#fff;color:#000;padding:0;font-size:12pt}
-  header.top,aside,.toast,.no-print,.modal-back,.decide,#aiRun,#aiStop,.actions .btn{display:none!important}
+  header.top,aside,.toast,.no-print,.modal-back,.decide,#aiRun,#aiStop,.actions .btn,.price,.pricing{display:none!important}
   body.show-protocol .grid{display:none!important}
   body:not(.show-protocol) #protocolView{display:none!important}
   .protocol{border:0;padding:0}
@@ -226,9 +244,19 @@ body.show-protocol .grid{display:none}
   <div class="brand"><b>Qalyp</b><span>ИИ-нормоконтроль студенческих работ: ИИ читает, код измеряет, решает человек</span></div>
   <div class="top-right">
     <span class="pill">Файл обрабатывается в браузере</span>
+    <button class="switch" id="pricingBtn" type="button" aria-expanded="false" aria-controls="pricingPanel">Тарифы</button>
     <label class="switch"><input type="checkbox" id="reviewerMode"><span>Режим нормоконтролёра</span></label>
   </div>
 </header>
+<section class="banner pricing" id="pricingPanel" aria-labelledby="h-pricing" hidden>
+  <h2 id="h-pricing">Тарифы</h2>
+  <p><b>Сейчас все функции открыты: Qalyp в пилоте.</b></p>
+  <ul>
+    <li>Бесплатно — проверка оформления по профилю вуза.</li>
+    <li>Полный отчёт (ИИ, источники, исправленный файл) — <span class="nw">990 ₸</span> (гипотеза).</li>
+    <li>Для вуза — лицензия <span class="nw">2 500–5 000 ₸</span> за студента в год: профиль методички, пакетная проверка группы, протокол нормоконтроля (гипотеза).</li>
+  </ul>
+</section>
 
 <div class="grid">
 <aside>
@@ -272,7 +300,7 @@ body.show-protocol .grid{display:none}
       <small>или нажмите, чтобы выбрать файл</small>
     </div>
     <input class="hidden-input" type="file" id="docFile" accept=".docx" tabindex="-1" aria-hidden="true">
-    <div class="file" id="fileInfo"></div>
+    <div class="filebox"><div class="file" id="fileInfo"></div><div class="file-error" id="fileError" role="alert"></div></div>
     <button class="btn link" id="loadSample" type="button">Открыть пример курсовой</button>
     <p class="note" id="sampleNote">Пример создан для демонстрации: в нём специально допущены ошибки оформления, пропущены элементы введения, а в список источников добавлена запись для проверки сверки с базами.</p>
   </section>
@@ -282,7 +310,7 @@ body.show-protocol .grid{display:none}
   <section class="panel" id="methodReview" aria-labelledby="h-mr" hidden></section>
   <section class="summary" id="summary" aria-label="Итог проверки"></section>
   <div id="docBanners"></div>
-  <section class="panel" aria-labelledby="h-sheet">
+  <section class="panel" id="sheetBox" aria-labelledby="h-sheet">
     <h2 id="h-sheet">Лист и основной текст</h2>
     <div class="sheetrow">
       <div class="sheet" id="sheet"></div>
@@ -296,6 +324,7 @@ body.show-protocol .grid{display:none}
       <div>
         <h2 id="h-ai">Смысл и источники <span class="ai-badge">ИИ</span></h2>
         <p class="note" style="margin-top:4px">ИИ читает введение и заключение: есть ли актуальность, цель, задачи, объект, предмет, методы и отвечает ли заключение на задачи. Список источников сервер сверяет с открытыми базами (Crossref, OpenAlex, adilet), а ИИ отмечает записи, которые стоит открыть и сверить вручную.</p>
+        <p class="note price" id="aiPrice"></p>
       </div>
       <div class="actions">
         <button class="btn primary" id="aiRun" type="button" disabled>Запустить ИИ-проверку</button>
@@ -324,7 +353,9 @@ body.show-protocol .grid{display:none}
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="sr-only" id="srStatus" role="status" aria-live="polite"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- JSZip: сначала копия с сервера Qalyp (из node_modules). Если её нет (страница открыта как файл),
+     90-init.js грузит jszip 3.10.1 с cdnjs с проверкой хеша (integrity) — см. UI_JSZIP_CDN. -->
+<script src="/vendor/jszip.min.js"></script>
 <script>
 // ===== shared/*.json =====
 const CODE_PARAMS = {"page.margin_left_mm":{"t":"number","min":5,"max":50,"field":"margins.left","label":"Левое поле, мм"},"page.margin_right_mm":{"t":"number","min":5,"max":50,"field":"margins.right","label":"Правое поле, мм"},"page.margin_top_mm":{"t":"number","min":5,"max":50,"field":"margins.top","label":"Верхнее поле, мм"},"page.margin_bottom_mm":{"t":"number","min":5,"max":50,"field":"margins.bottom","label":"Нижнее поле, мм"},"page.number_position":{"t":"enum","of":["bottom-center","bottom-right","top-center","top-right"],"field":"pageNum","label":"Номер страницы"},"text.font":{"t":"string","field":"font","alt":"fontAlt","label":"Шрифт"},"text.size_pt":{"t":"number","min":8,"max":20,"field":"size","rangeMin":"sizeMin","rangeMax":"sizeMax","label":"Кегль, пт"},"text.line_spacing":{"t":"number","min":1,"max":3,"field":"line","label":"Межстрочный интервал"},"text.indent_cm":{"t":"number","min":0,"max":3,"field":"indent","label":"Абзацный отступ, см"},"text.align":{"t":"enum","of":["both","left"],"field":"align","label":"Выравнивание"},"struct.required":{"t":"list","of":["toc","intro","concl","refs","app","abbr"],"field":"requiredSections","label":"Обязательные разделы"},"struct.heading_centered":{"t":"bool","field":"structCentered","label":"Заголовки разделов по центру"},"struct.heading_upper":{"t":"bool","field":"structUpper","label":"Заголовки разделов прописными"},"struct.new_page":{"t":"bool","field":"newPage","label":"Раздел с новой страницы"},"refs.min_count":{"t":"number","min":0,"max":300,"int":true,"field":"minRefs","label":"Минимум источников"},"refs.fresh_years":{"t":"number","min":1,"max":30,"int":true,"field":"freshYears","label":"Свежие источники — за последние N лет"},"refs.fresh_share":{"t":"number","min":0,"max":1,"field":"freshShare","label":"Доля свежих источников"}};
@@ -863,6 +894,11 @@ const MAIN_REGIONS = ["intro", "body", "concl"];
 const inMain = (p) => MAIN_REGIONS.includes(p.region);
 // Видимый текст абзаца (без скрытого), обрезанный по краям
 const pv = (p) => (p && typeof p.vis === "string" ? p.vis : visibleText(p).trim());
+// Точка сокращения в конце строки («2020–2024 гг.», «млн тг.», «и т. д.») — не «точка в конце заголовка»:
+// автоисправление (70-fix.js) её оставляет и берёт этот же список, поэтому и проверка её не считает.
+const TEXT_ABBR_END = /(^|[\s(«"„.])(г|гг|вв|тыс|млн|млрд|трлн|руб|тг|долл|коп|др|пр|проч|им|ед|шт|экз|чел|изд|ок|прибл|мин|сек|ч|стр|обл|ул|просп|кв|св|англ|рус|каз|лат|напр|ср|рис|табл|гл|разд|вып|прим|ст|пп|ж|жж|etc|al|т\.\s?д|т\.\s?п|т\.\s?е|т\.\s?б|т\.\s?с\.\s?с)\.$/i;
+// Лишняя точка в конце: одна точка (не многоточие) и не точка сокращения
+const endDot = (t) => { t = String(t || "").replace(/\s+$/, ""); return /(^|[^.])\.$/.test(t) && !TEXT_ABBR_END.test(t); };
 
 // ----- Список источников -----
 function parseRefs(paras) {
@@ -1039,11 +1075,18 @@ function runChecks(A, P) {
     add("Основной текст", "err", "Не удалось найти основной текст работы", "Программа не нашла абзацы введения, основной части, заключения и списка источников, поэтому шрифт, кегль, интервал, отступ и выравнивание не проверены. Проверьте, что «ВВЕДЕНИЕ», «ЗАКЛЮЧЕНИЕ» и заголовки глав стоят отдельными строками.", [], "", { key: "text.none" });
   }
   const ex = (arr) => arr.slice(0, 3).map(([p, v]) => ({ sec: p.section + " · " + v, text: snip(pv(p)) }));
-  if (fontBad.length) add("Основной текст", "err", `Другой шрифт в ${fontBad.length} абз.`, `Нужен ${fontNeed}. Обычно так выглядит текст, вставленный из интернета.`, ex(fontBad), "Выделить абзац → Ctrl+Space. Исправляется автоматически.", { key: "text.font", share: share(fontBad) });
-  if (sizeBad.length) add("Основной текст", "err", sizeRange(P) ? `Кегль вне ${sizeNeed(P)} пт в ${sizeBad.length} абз.` : `Кегль не ${P.size} пт в ${sizeBad.length} абз.`, "", ex(sizeBad), `Установить ${sizeNeed(P)} пт. Исправляется автоматически.`, { key: "text.size", share: share(sizeBad) });
-  if (lineBad.length) add("Основной текст", "err", `Интервал не ${fmt(P.line, 1)} в ${lineBad.length} абз.`, "", ex(lineBad), `Абзац → Междустрочный: ${lineName(P.line)}. Исправляется автоматически.`, { key: "text.line", share: share(lineBad) });
-  if (indBad.length) add("Основной текст", "err", `Абзацный отступ не ${fmt(P.indent, 2)} см в ${indBad.length} абз.`, "Отступ нужно задавать в настройках абзаца, а не пробелами или табуляцией.", ex(indBad), "Исправляется автоматически.", { key: "text.indent", share: share(indBad) });
-  if (alBad.length) add("Основной текст", "err", `Выравнивание не ${ALIGN_RU[P.align]} в ${alBad.length} абз.`, "", ex(alBad), `${P.align === "left" ? "Ctrl+L" : "Ctrl+J"}. Исправляется автоматически.`, { key: "text.align", share: share(alBad) });
+  // Чего автоисправление (70-fix.js) в основном тексте не трогает — по каждому виду находки
+  const FIX_AUTO = {
+    font: "Исправляется автоматически, кроме листингов кода и символьных шрифтов (Symbol, Wingdings).",
+    size: "Исправляется автоматически, кроме листингов кода и строк, похожих на заголовки.",
+    layout: "Исправляется автоматически, кроме абзацев с формулами, листингов кода и строк, похожих на заголовки.",
+    spaces: "Исправляется автоматически, кроме листингов кода.",
+  };
+  if (fontBad.length) add("Основной текст", "err", `Другой шрифт в ${fontBad.length} абз.`, `Нужен ${fontNeed}. Обычно так выглядит текст, вставленный из интернета.`, ex(fontBad), "Выделить абзац → Ctrl+Space. " + FIX_AUTO.font, { key: "text.font", share: share(fontBad) });
+  if (sizeBad.length) add("Основной текст", "err", sizeRange(P) ? `Кегль вне ${sizeNeed(P)} пт в ${sizeBad.length} абз.` : `Кегль не ${P.size} пт в ${sizeBad.length} абз.`, "", ex(sizeBad), `Установить ${sizeNeed(P)} пт. ${FIX_AUTO.size}`, { key: "text.size", share: share(sizeBad) });
+  if (lineBad.length) add("Основной текст", "err", `Интервал не ${fmt(P.line, 1)} в ${lineBad.length} абз.`, "", ex(lineBad), `Абзац → Междустрочный: ${lineName(P.line)}. ${FIX_AUTO.size}`, { key: "text.line", share: share(lineBad) });
+  if (indBad.length) add("Основной текст", "err", `Абзацный отступ не ${fmt(P.indent, 2)} см в ${indBad.length} абз.`, "Отступ нужно задавать в настройках абзаца, а не пробелами или табуляцией.", ex(indBad), FIX_AUTO.layout, { key: "text.indent", share: share(indBad) });
+  if (alBad.length) add("Основной текст", "err", `Выравнивание не ${ALIGN_RU[P.align]} в ${alBad.length} абз.`, "", ex(alBad), `${P.align === "left" ? "Ctrl+L" : "Ctrl+J"}. ${FIX_AUTO.layout}`, { key: "text.align", share: share(alBad) });
   // Пробелы по обе стороны формулы, объекта, символа или сноски в строке — не двойной пробел (автоисправление их тоже не трогает)
   const spacedText = (p) => { let s = "";
     const walk = (n) => { for (const c of n.children) { const nm = c.nodeName;
@@ -1052,7 +1095,7 @@ function runChecks(A, P) {
       else if (!/^(w:pPr|w:rPr|w:delText|w:instrText|w:del|w:moveFrom|w:txbxContent|mc:Fallback)$/.test(nm)) walk(c); } };
     walk(p.el); return s; };
   const dbl = bodyP.filter(p => / {2,}/.test(pv(p)) && (!p.nonText || / {2,}/.test(spacedText(p))));
-  if (dbl.length) add("Основной текст", "warn", `Двойные пробелы в ${dbl.length} абз.`, "", dbl.slice(0, 3).map(W), "Найти «  » → заменить на « ». Исправляется автоматически.", { key: "text.spaces", share: share(dbl) });
+  if (dbl.length) add("Основной текст", "warn", `Двойные пробелы в ${dbl.length} абз.`, "", dbl.slice(0, 3).map(W), "Найти «  » → заменить на « ». " + FIX_AUTO.spaces, { key: "text.spaces", share: share(dbl) });
   const emptyRuns = []; let cur = [];
   // Пустой абзац с разрывом страницы или раздела, рамкой или маркером списка — не «пустая строка»: он что-то значит, и автоисправление его оставляет
   const keepEmpty = (p) => { const ppr = kid(p.el, "w:pPr"), pb = kid(ppr, "w:pageBreakBefore");
@@ -1079,23 +1122,24 @@ function runChecks(A, P) {
     // у приложения прописными пишется слово «ПРИЛОЖЕНИЕ», а «(обязательное)» и название — как обычно
     const kw = p.struct === "app" ? shown.match(/приложени[ея]|қосымша\S*|косымша\S*/i) : null;
     const upperOk = kw ? kw[0] === kw[0].toUpperCase() : shown === shown.toUpperCase();
-    if (P.structUpper && !upperOk) add("Структура и заголовки", "err", `«${snip(t, 40)}» не прописными буквами`, "", [W(p)], "Набрать заголовок прописными буквами.", { key: "struct.upper" });
-    if (/\.$/.test(t)) add("Структура и заголовки", "err", "Точка в конце заголовка", "", [W(p)], "Исправляется автоматически.", { key: "struct.dot" });
+    // автоисправление ставит прописные (w:caps) у всех структурных элементов, кроме приложения: там прописными — только слово «ПРИЛОЖЕНИЕ»
+    if (P.structUpper && !upperOk) add("Структура и заголовки", "err", `«${snip(t, 40)}» не прописными буквами`, "", [W(p)], p.struct === "app" ? "Набрать слово «ПРИЛОЖЕНИЕ» прописными буквами." : "Набрать заголовок прописными буквами. Исправляется автоматически.", { key: "struct.upper" });
+    if (endDot(t)) add("Структура и заголовки", "err", "Точка в конце заголовка", "", [W(p)], "Исправляется автоматически.", { key: "struct.dot" });
     if (P.newPage && !p.newPage && p.struct !== "toc") add("Структура и заголовки", "warn", `«${snip(t, 40)}» не с новой страницы`, "Каждый структурный элемент начинают с новой страницы.", [W(p)], "Вставка → Разрыв страницы перед заголовком.", { key: "struct.newpage" });
   }
-  const secDots = A.paras.filter(p => p.isSection && /\.$/.test(pv(p)));
+  const secDots = A.paras.filter(p => p.isSection && endDot(pv(p)));
   if (secDots.length) add("Структура и заголовки", "err", `Точка в конце заголовка раздела (${secDots.length})`, "В заголовках разделов и подразделов точку в конце не ставят.", secDots.slice(0, 3).map(W), "Исправляется автоматически.", { key: "sec.dot", n: secDots.length });
 
   // ----- Рисунки и таблицы (только во введении, основной части и заключении) -----
   const capP = A.paras.filter(p => p.caption && !p.inTable && inMain(p));
   for (const p of capP.filter(p => p.caption === "fig")) {
     const t = pv(p);
-    if (!CAP_FORM.fig.some(re => re.test(t)) || /\.$/.test(t)) add("Рисунки и таблицы", "err", "Подпись рисунка не по форме", "Нужно: «Рисунок 1 – Название» (или «1-сурет – Атауы»), без сокращения «Рис.» и без точки в конце.", [W(p)], "Исправляется автоматически.", { key: "fig.form" });
+    if (!CAP_FORM.fig.some(re => re.test(t)) || endDot(t)) add("Рисунки и таблицы", "err", "Подпись рисунка не по форме", "Нужно: «Рисунок 1 – Название» (или «1-сурет – Атауы»), без сокращения «Рис.» и без точки в конце.", [W(p)], "Исправляется автоматически.", { key: "fig.form" });
     if (p.align !== "center") add("Рисунки и таблицы", "err", "Подпись рисунка не по центру", "", [W(p)], "Исправляется автоматически.", { key: "fig.center" });
   }
   for (const p of capP.filter(p => p.caption === "tbl")) {
     const t = pv(p);
-    if (!CAP_FORM.tbl.some(re => re.test(t)) || /\.$/.test(t)) add("Рисунки и таблицы", "err", "Название таблицы не по форме", "Нужно: «Таблица 1 – Название» (или «1-кесте – Атауы») над таблицей, слева, одной строкой, без точки.", [W(p)], "", { key: "tbl.form" });
+    if (!CAP_FORM.tbl.some(re => re.test(t)) || endDot(t)) add("Рисунки и таблицы", "err", "Название таблицы не по форме", "Нужно: «Таблица 1 – Название» (или «1-кесте – Атауы») над таблицей, слева, одной строкой, без точки.", [W(p)], "Если название стоит одной строкой — исправляется автоматически.", { key: "tbl.form" });
   }
   const look = (i, step, max) => { const res = []; for (let j = i + step; j >= 0 && j < A.paras.length && res.length < max; j += step) { const q = A.paras[j]; if (q.inTable) continue; if (q.table) { res.push(q); break; } if (pv(q) || q.drawing || q.nonText) res.push(q); } return res; };
   A.paras.forEach((p, i) => {
@@ -1173,15 +1217,32 @@ const state = {
   downloads: null,   // если задан ({ save({ filename, data }) }) — сохраняем через него (тесты); иначе обычная ссылка на Blob
   ai: null,          // ИИ и сверка источников по текущей работе (50-ai.js)
   fixLog: null,      // что изменило автоисправление: [{ title, count }] (пишет fixDocx)
+  fixError: null,    // почему исправленный файл не сохранён (пишет fixDocx); строка или null
   decisions: {},     // решения нормоконтролёра: ключ находки → { verdict, comment }
   reviewer: false,   // режим нормоконтролёра
   health: null,      // ответ GET /api/health (50-ai.js)
   method: null,      // экран подтверждения методички (60-method.js)
   docSeq: 0,         // номер загрузки работы: поздние ответы по старой работе отбрасываются
+  busy: null,        // "parse" — идёт разбор работы, "fix" — исправление; кнопки работы на это время выключены
 };
 const profile = () => state.profiles.find((p) => p.id === state.pid) || state.profiles[0];
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 5000); }
+// Строка итога для скринридера (единственная область aria-live в отчёте)
 function uiAnnounce(msg) { const s = $("srStatus"); if (s) s.textContent = msg; }
+// Меняем текст, только если он другой: области role=status/alert не перечитываются впустую
+function uiSetText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+// Дать браузеру нарисовать «Проверяем…» до тяжёлой работы (во вкладке в фоне — не дольше 60 мс)
+function uiNextPaint() {
+  return new Promise((res) => {
+    let done = false; const go = () => { if (!done) { done = true; setTimeout(res, 0); } };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(go);
+    setTimeout(go, 60);
+  });
+}
+// Пометка о цене у платных в будущем функций. Оплаты в продукте нет, ничего не блокируется.
+const UI_PRICE_NOTE = "Полный отчёт — 990 ₸ для студента; для студентов вуза с лицензией — бесплатно";
+const UI_PRICE_TEXT = UI_PRICE_NOTE + ". Пока идёт пилот, всё открыто.";
+const uiPriceHtml = () => `<p class="note price">${esc(UI_PRICE_TEXT)}</p>`;
 
 // ---------- мелкие помощники ----------
 const UI_PAGENUM = { "bottom-center": "внизу по центру", "bottom-right": "внизу справа", "top-center": "вверху по центру", "top-right": "вверху справа" };
@@ -1303,13 +1364,14 @@ function renderSummary() {
   $("summary").innerHTML = `
     <div><div class="score">${esc(R.score)}<small>/100</small></div><div class="note">балл автопроверки оформления</div>${uiPenaltiesHtml(R)}</div>
     <div><h2>${esc(state.name)}</h2>
-      <div class="counts"><span class="chip err">${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}</span><span class="chip warn">${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</span><span class="chip ok">≈${pages} стр. текста</span>${aiChips}</div>
+      <div class="counts"><span class="chip err">${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}</span><span class="chip warn">${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</span><span class="chip muted">≈${pages} стр. текста</span>${aiChips}</div>
       <p class="note" style="margin-top:8px">Профиль: ${esc(P.name)}${P.source === "method" ? ` <span class="ai-badge">Вывод ИИ</span>` : ""}</p>
       <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="fixBtn" type="button">Исправить оформление (.docx)</button>
+        <button class="btn primary" id="fixBtn" type="button"${state.busy ? " disabled" : ""}>Исправить оформление (.docx)</button>
         <button class="btn" id="protocolBtn" type="button"${state.reviewer ? "" : " hidden"}>Протокол</button>
       </div>
-      <div class="note" id="fixNote" style="margin-top:6px">Программа меняет оформление по выбранному профилю: поля, шрифт, интервалы, отступы, выравнивание. Ссылки и источники правит автор.</div>
+      <div class="note" id="fixNote" style="margin-top:6px">${uiFixNoteHtml()}</div>
+      ${uiPriceHtml()}
       <div id="fixLog">${uiFixLogHtml()}</div></div>
     <div class="stamp ${good ? "good" : "bad"}">Предварительная проверка<small>Решение принимает нормоконтролёр</small></div>`;
   $("fixBtn").onclick = runFix;
@@ -1331,10 +1393,23 @@ function uiPenaltiesHtml(R) {
   return `<details class="note" style="margin-top:6px;max-width:240px"><summary>Из чего сложился балл</summary><ul style="margin:4px 0 0;padding-left:18px">${ps.map((x) => `<li>−${esc(uiNum(+x.penalty, 1))} — ${esc(uiStr(x.title, 200))}${x.n > 1 ? ` (${esc(x.n)})` : ""}</li>`).join("")}</ul>
     <p style="margin:4px 0 0">Балл — ориентир для автора, а не оценка работы.</p></details>`;
 }
+const uiBusyHtml = (t) => `<span class="thinking"><span class="dot" aria-hidden="true"></span>${esc(t)}</span>`;
+function uiFixNoteHtml() {
+  return state.busy === "fix" ? uiBusyHtml("Исправляем файл…")
+    : "Программа меняет оформление по выбранному профилю: поля, шрифт, интервалы, отступы, выравнивание, подписи рисунков и названия таблиц, прописные буквы в заголовках структурных элементов. Ссылки и источники правит автор.";
+}
+// В журнале fixDocx пропущенное начинается с «Пропущено:» или «Проверьте вручную:» — это не исправлено
+const UI_FIX_SKIPPED = /^(Пропущено|Проверьте вручную):/;
 function uiFixLogHtml() {
-  const log = state.fixLog; if (!Array.isArray(log)) return "";
+  // файл не сохранён — причина видна, пока не нажали «Исправить» ещё раз или не открыли другую работу
+  const err = typeof state.fixError === "string" && state.fixError ? `<div class="banner err" style="margin-top:8px">${esc(uiStr(state.fixError, 400))}</div>` : "";
+  const log = state.fixLog; if (!Array.isArray(log)) return err;
   if (!log.length) return `<p class="note" style="margin-top:8px">Автоисправлению нечего было менять.</p>`;
-  return `<div class="fixlog"><h3>Что исправлено</h3><ul>${log.map((x) => `<li>${esc(uiStr(x && x.title, 200))}${x && Number.isFinite(+x.count) ? ` — ${esc(+x.count)}` : ""}</li>`).join("")}</ul>
+  const item = (x) => `<li>${esc(uiStr(x && x.title, 200))}${x && Number.isFinite(+x.count) ? ` — ${esc(+x.count)}` : ""}</li>`;
+  const skipped = (x) => UI_FIX_SKIPPED.test(String((x && x.title) || ""));
+  const done = log.filter((x) => !skipped(x)), left = log.filter(skipped);
+  return `<div class="fixlog">${done.length ? `<h3>Что исправлено</h3><ul>${done.map(item).join("")}</ul>` : `<p class="note">Программа ничего не изменила в оформлении.</p>`}
+    ${left.length ? `<h3>Не исправлено — посмотрите сами</h3><ul>${left.map(item).join("")}</ul>` : ""}
     <p class="note">Исправленный файл сохранён. Откройте его здесь ещё раз, чтобы проверить результат.</p></div>`;
 }
 function renderBanners() {
@@ -1379,6 +1454,7 @@ function renderManual() {
 function render() {
   const { A, R } = state; if (!A || !R) return;
   const P = profile();
+  $("report").classList.remove("no-report");
   renderSummary();
   renderBanners();
   $("sheet").innerHTML = sheetSvg(A, P);
@@ -1406,16 +1482,24 @@ async function uiSaveFile({ filename, data }) {
   return uiSaveBlob({ filename, data });
 }
 async function runFix() {
-  if (!state.buf) return;
-  const btn = $("fixBtn"), my = state.docSeq;
-  if (btn) btn.disabled = true;
+  if (!state.buf || state.busy) return;
+  const my = state.docSeq;
+  state.busy = "fix"; uiBusyState();
+  const note = $("fixNote"); if (note) note.innerHTML = uiFixNoteHtml();
+  uiAnnounce("Исправляем файл…");
+  await uiNextPaint();
   const own = !state.downloads;   // fixDocx сохраняет через state.downloads.save — даём ему свою функцию на время вызова
   if (own) state.downloads = { save: uiSaveBlob };
-  state.fixLog = null;
+  state.fixLog = null; state.fixError = null;
   try { await fixDocx(); }
-  catch (e) { toast("Не удалось исправить файл: " + ((e && e.message) || e)); }
-  finally { if (own) state.downloads = null; }
-  if (my === state.docSeq) { renderSummary(); if (Array.isArray(state.fixLog)) uiAnnounce("Файл исправлен: " + state.fixLog.map((x) => x.title).join(", ")); }
+  catch (e) { state.fixError = "Не удалось исправить файл: " + ((e && e.message) || e); toast(state.fixError); }
+  finally { if (own) state.downloads = null; if (state.busy === "fix") state.busy = null; }
+  // пока исправляли, открыли другую работу: журнал правок прежней работы к ней не относится
+  if (my !== state.docSeq) { state.fixLog = null; state.fixError = null; uiBusyState(); return; }
+  renderSummary(); uiBusyState();
+  // причину отказа fixDocx уже сказал скринридеру — не затираем её общим «не исправлен»
+  const done = Array.isArray(state.fixLog) ? state.fixLog.filter((x) => !UI_FIX_SKIPPED.test(String((x && x.title) || ""))).map((x) => x.title) : null;
+  uiAnnounce(done ? (done.length ? "Файл исправлен: " + done.join(", ") : "Файл сохранён, оформление менять не пришлось.") : state.fixError || "Файл не исправлен.");
 }
 
 // ---------- протокол для печати ----------
@@ -1444,27 +1528,27 @@ function renderProtocol() {
   const aiItems = typeof aiProtocolItems === "function" ? aiProtocolItems() : [];
   const aiPart = !state.ai ? `<p>ИИ-проверка не запускалась.</p>`
     : !aiItems.length ? `<p>ИИ-проверка запущена; замечаний ИИ к введению, заключению и источникам нет.</p>`
-    : `<table><thead><tr><th>Что</th><th>Вывод ИИ</th><th>Проверено человеком</th><th>Комментарий</th></tr></thead><tbody>${aiItems.map((it) => {
+    : `<div class="tablewrap"><table><thead><tr><th>Что</th><th>Вывод ИИ</th><th>Проверено человеком</th><th>Комментарий</th></tr></thead><tbody>${aiItems.map((it) => {
         const d = state.decisions[it.key]; const checked = d && d.verdict ? `да — ${UI_VERDICT_TEXT[d.verdict]}` : "нет";
-        return `<tr><td>${esc(it.what)}</td><td>${esc(it.verdict)}</td><td>${esc(checked)}</td><td>${esc(uiComment(it.key))}</td></tr>`; }).join("")}</tbody></table>`;
+        return `<tr><td>${esc(it.what)}</td><td>${esc(it.verdict)}</td><td>${esc(checked)}</td><td>${esc(uiComment(it.key))}</td></tr>`; }).join("")}</tbody></table></div>`;
   const manual = uiManualRules(P);
-  const manualPart = manual.length ? `<h2>Проверяет человек: правила методички</h2><table><thead><tr><th>Пункт</th><th>Правило</th><th>Итог</th><th>Комментарий</th></tr></thead><tbody>${manual.map((r) =>
-    `<tr><td>${esc(r.clause || "—")}</td><td>${esc(r.rule)}</td><td>${esc(uiVerdictText("manual|" + r.id))}</td><td>${esc(uiComment("manual|" + r.id))}</td></tr>`).join("")}</tbody></table>` : "";
+  const manualPart = manual.length ? `<h2>Проверяет человек: правила методички</h2><div class="tablewrap"><table><thead><tr><th>Пункт</th><th>Правило</th><th>Итог</th><th>Комментарий</th></tr></thead><tbody>${manual.map((r) =>
+    `<tr><td>${esc(r.clause || "—")}</td><td>${esc(r.rule)}</td><td>${esc(uiVerdictText("manual|" + r.id))}</td><td>${esc(uiComment("manual|" + r.id))}</td></tr>`).join("")}</tbody></table></div>` : "";
   $("protocolView").innerHTML = `
     <div class="actions no-print"><button class="btn primary" id="protoPrint" type="button">Сохранить протокол (PDF)</button><button class="btn" id="protoBack" type="button">Вернуться к отчёту</button>
       <span class="note">В окне печати выберите «Сохранить как PDF».</span></div>
     <article class="proto-doc">
       <h1 id="h-proto">Протокол предварительной проверки оформления</h1>
-      <table class="proto-meta"><tbody>
+      <div class="tablewrap"><table class="proto-meta"><tbody>
         <tr><th>Файл</th><td>${esc(state.name)}</td></tr>
         <tr><th>Дата</th><td>${esc(uiDate())}</td></tr>
         <tr><th>Профиль</th><td>${esc(P.name)}</td></tr>
         <tr><th>Источник профиля</th><td>${src}</td></tr>
         <tr><th>Автопроверка</th><td>${esc(R.score)}/100 · ${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")} · ${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</td></tr>
-      </tbody></table>
+      </tbody></table></div>
       <p class="proto-stamp">Предварительная проверка. Решение принимает нормоконтролёр.</p>
       <h2>Нарушения оформления (измерила программа)</h2>
-      ${R.findings.length ? `<table><thead><tr><th>№</th><th>Нарушение</th><th>Где</th><th>Решение нормоконтролёра</th><th>Комментарий</th></tr></thead><tbody>${codeRows}</tbody></table>` : "<p>Программа нарушений не нашла.</p>"}
+      ${R.findings.length ? `<div class="tablewrap"><table><thead><tr><th>№</th><th>Нарушение</th><th>Где</th><th>Решение нормоконтролёра</th><th>Комментарий</th></tr></thead><tbody>${codeRows}</tbody></table></div>` : "<p>Программа нарушений не нашла.</p>"}
       ${uiIsObj(R.coverage) && uiArr(R.coverage.notChecked).length ? `<p class="note">Программа не проверяет: ${esc(uiArr(R.coverage.notChecked).join(", "))}.</p>` : ""}
       <h2>Выводы ИИ <span class="ai-badge">Вывод ИИ</span></h2>
       <p class="note">Сформированы ИИ и могут быть ошибочны. В столбце «Проверено человеком» — смотрел ли вывод нормоконтролёр.</p>
@@ -1477,51 +1561,133 @@ function renderProtocol() {
 }
 
 // ---------- загрузка работы ----------
+// Лимиты: файл .docx больше 30 МБ и текст документа (word/document.xml) больше 50 МБ после распаковки не разбираем —
+// иначе вкладка зависает или падает (ревью mvp_sec_ux, находка 10).
+const UI_MAX_FILE = 30 * 1024 * 1024;
+const UI_MAX_XML = 50 * 1024 * 1024;
+const UI_TEXT = {
+  type: "Нужен файл .docx. Файл .doc откройте в Word и сохраните как .docx.",
+  size: "Файл больше 30 МБ — программа такой не разбирает. Обычно размер дают рисунки: сожмите их в Word (вкладка «Формат рисунка» → «Сжать рисунки») и сохраните файл заново.",
+  xml: "Текст документа после распаковки больше 50 МБ — программа такой файл не разбирает, чтобы страница не зависла. Проверьте, тот ли это файл.",
+  disk: "Не удалось прочитать файл с диска.",
+  lib: "Не загрузилась библиотека для чтения .docx. Дело не в вашем файле: проверьте интернет и обновите страницу.",
+  broken: "Файл повреждён или это не .docx. Откройте его в Word и сохраните заново.",
+};
+const uiErr = (text) => Object.assign(new Error(text), { uiText: text });
+// Размер word/document.xml по оглавлению архива — без распаковки (null, если узнать нельзя)
+async function uiDocxXmlSize(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const f = zip.file("word/document.xml");
+  const n = f && f._data ? Number(f._data.uncompressedSize) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+// Постоянная строка ошибки под полем загрузки (role="alert"); пустая — не видна
+function uiFileError(text) { uiSetText($("fileError"), text || ""); }
+// Пока идёт разбор или исправление — кнопки работы выключены, отчёт помечен aria-busy
+function uiBusyState() {
+  const busy = !!state.busy, rep = $("report"), drop = $("drop");
+  if (busy) rep.setAttribute("aria-busy", "true"); else rep.removeAttribute("aria-busy");
+  rep.dataset.busy = state.busy || "";   // при разборе прежний отчёт бледнеет: он уже не про выбранный файл
+  if (busy) drop.setAttribute("aria-disabled", "true"); else drop.removeAttribute("aria-disabled");
+  $("loadSample").disabled = busy;
+  const fix = $("fixBtn"); if (fix) fix.disabled = busy;
+  if (typeof aiButtonsState === "function") aiButtonsState();
+}
+// Новый файл не прочитан: прежний отчёт убираем, чтобы он не выглядел отчётом по новому файлу
+function uiClearReport(text) {
+  if (!$("protocolView").hidden) closeProtocol();
+  Object.assign(state, { buf: null, name: "", D: null, A: null, R: null, ai: null, fixLog: null, fixError: null, decisions: {} });
+  $("report").classList.add("no-report");
+  $("summary").innerHTML = `<div class="banner err" style="grid-column:1/-1">${esc(text)}</div>`;
+  for (const id of ["docBanners", "sheet", "params", "findings", "aiOut"]) $(id).innerHTML = "";
+  $("manualBox").hidden = true; $("manualBox").innerHTML = "";
+  if (typeof aiButtonsState === "function") aiButtonsState();
+}
+// Возвращает true, если работа проверена и показана
 async function process(buf, name) {
+  // пока исправляем файл, другую работу не открываем: имя и содержимое исправленного файла не должны перепутаться
+  if (state.busy === "fix") { toast(UI_WAIT.fix); return false; }
   const my = ++state.docSeq;
   if (typeof aiCancel === "function") aiCancel("newdoc");
-  $("fileInfo").innerHTML = `<b>${esc(name)}</b><span>читаю…</span>`;
+  state.busy = "parse"; uiBusyState();
+  uiFileError("");
+  $("fileInfo").innerHTML = `<b>${esc(name)}</b>${uiBusyHtml("Проверяем…")}`;
+  uiAnnounce("Проверяем файл…");
   try {
+    await uiNextPaint();
+    if (my !== state.docSeq) return false;
+    const xml = await uiDocxXmlSize(buf);
+    if (xml !== null && xml > UI_MAX_XML) throw uiErr(UI_TEXT.xml);
+    if (my !== state.docSeq) return false;
     const D = await readDocx(buf.slice(0));
-    if (my !== state.docSeq) return;
+    if (my !== state.docSeq) return false;
     const A = analyze(D), R = runChecks(A, profile());
-    Object.assign(state, { buf, name, D, A, R, ai: null, fixLog: null, decisions: {} });
+    Object.assign(state, { buf, name, D, A, R, ai: null, fixLog: null, fixError: null, decisions: {} });
     $("aiOut").innerHTML = "";
     $("fileInfo").innerHTML = `<b>${esc(name)}</b><span>${esc((A.words || 0).toLocaleString("ru-RU"))} слов · ${esc(R.refs.length)} источн.</span>`;
-    render();
+    state.busy = null;
+    render(); uiBusyState();
     uiAnnounce(`Проверка завершена: ${R.errs} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}, ${R.warns} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}.`);
+    return true;
   } catch (e) {
-    if (my !== state.docSeq) return;
+    if (my !== state.docSeq) return false;
     const msg = String((e && e.message) || e);
-    const text = (e instanceof ReferenceError && /JSZip/.test(msg)) ? "Не загрузилась библиотека для чтения .docx. Проверьте интернет и обновите страницу."
-      : /central directory|corrupted zip|is this a zip|end of data|word\/document/i.test(msg) ? "Файл повреждён или это не .docx. Откройте его в Word и сохраните заново."
+    const text = e && e.uiText ? e.uiText
+      : (e instanceof ReferenceError && /JSZip/.test(msg)) ? UI_TEXT.lib
+      : /central directory|corrupted zip|is this a zip|end of data|word\/document/i.test(msg) ? UI_TEXT.broken
       : "Не удалось прочитать файл: " + msg;
-    $("fileInfo").innerHTML = `<b>${esc(name)}</b><span class="bad">${esc(text)}${state.R ? ` Ниже — прежний отчёт: «${esc(state.name)}».` : ""}</span>`;
+    const full = `Файл «${name}» не проверен. ${text}`;
+    uiClearReport(full);
+    $("fileInfo").innerHTML = `<b>${esc(name)}</b><span class="bad">не проверен</span>`;
+    uiFileError(full);
     toast(text);
+    uiAnnounce("");
+    return false;
+  } finally {
+    if (my === state.docSeq && state.busy === "parse") { state.busy = null; uiBusyState(); }
   }
 }
 function recheck() { if (!state.A) return; state.R = runChecks(state.A, profile()); render(); }
 
-const UI_MAX_FILE = 50 * 1024 * 1024;
-// На телефоне отчёт ниже панели загрузки: после выбора файла показываем его
+// На телефоне отчёт ниже панели загрузки: после проверки прокручиваем к итогу
 function uiShowReport() {
-  if (typeof matchMedia === "function" && matchMedia("(max-width:860px)").matches && typeof $("report").scrollIntoView === "function") $("report").scrollIntoView({ block: "start" });
+  const s = $("summary");
+  if (typeof matchMedia !== "function" || !matchMedia("(max-width:860px)").matches || !s || typeof s.scrollIntoView !== "function") return;
+  s.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
+// Файл отклонён до чтения (не тот формат, слишком большой): прежний отчёт остаётся, это сказано прямо
+function uiFileRejected(name, text) {
+  uiFileError(`Файл «${name}» не проверен. ${text}${state.R ? ` Отчёт ниже — по файлу «${state.name}».` : ""}`);
+  toast(text);
+}
+const UI_WAIT = { parse: "Подождите: идёт проверка файла.", fix: "Подождите: идёт исправление файла." };
 const pick = (f) => {
   if (!f) return;
-  if (!/\.docx$/i.test(f.name)) return toast("Нужен файл .docx. Файл .doc откройте в Word и сохраните как .docx.");
-  if (f.size > UI_MAX_FILE) return toast("Файл больше 50 МБ. Сожмите рисунки в Word и сохраните заново.");
-  f.arrayBuffer().then((b) => process(b, f.name).then(uiShowReport), () => toast("Не удалось прочитать файл с диска."));
+  if (state.busy) return toast(UI_WAIT[state.busy] || UI_WAIT.parse);
+  if (!/\.docx$/i.test(f.name)) return uiFileRejected(f.name, UI_TEXT.type);
+  if (f.size > UI_MAX_FILE) return uiFileRejected(f.name, UI_TEXT.size);
+  f.arrayBuffer().then((b) => process(b, f.name).then((ok) => { if (ok) uiShowReport(); }), () => uiFileRejected(f.name, UI_TEXT.disk));
 };
-$("drop").onclick = () => $("docFile").click();
-$("drop").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("docFile").click(); } };
+$("drop").onclick = () => { if (!state.busy) $("docFile").click(); };
+$("drop").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!state.busy) $("docFile").click(); } };
 $("docFile").onchange = (e) => { pick(e.target.files[0]); e.target.value = ""; };
 ["dragover", "dragenter"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
 ["dragleave", "drop"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
-$("drop").addEventListener("drop", (e) => pick(e.dataTransfer && e.dataTransfer.files[0]));
+$("drop").addEventListener("drop", (e) => {
+  const fs = (e.dataTransfer && e.dataTransfer.files) || [];
+  // здесь проверяется одна работа; несколько сразу — в «Проверке группы» (45-batch.js), если она есть на странице
+  if (fs.length > 1 && !state.busy) toast(`Взят первый файл из ${fs.length}.${$("batchBox") ? " Несколько работ сразу — в разделе «Проверка группы»." : ""}`);
+  pick(fs[0]);
+});
 function sampleBuf() { const b = atob(SAMPLE_B64); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; }
 const UI_SAMPLE_NAME = "Пример: курсовая «Цифровизация МСП Акмолинской области».docx";
-$("loadSample").onclick = () => process(sampleBuf(), UI_SAMPLE_NAME).then(uiShowReport);
+$("loadSample").onclick = () => { if (!state.busy) process(sampleBuf(), UI_SAMPLE_NAME).then((ok) => { if (ok) uiShowReport(); }); };
+// «Тарифы» в шапке: только подсказка, функции не блокируются
+$("aiPrice").textContent = UI_PRICE_TEXT;
+$("pricingBtn").onclick = () => {
+  const p = $("pricingPanel"), open = p.hidden;
+  p.hidden = !open; $("pricingBtn").setAttribute("aria-expanded", String(open));
+};
 // Выбранный профиль помним между заходами (в localStorage только id профиля)
 function uiRememberPid() { try { localStorage.setItem("qalyp.pid", state.pid); } catch {} }
 $("profileSel").onchange = (e) => { state.pid = e.target.value; uiRememberPid(); renderProfiles(); recheck(); };
@@ -1531,6 +1697,372 @@ $("reviewerMode").onchange = (e) => {
   render(); if (typeof aiRender === "function") aiRender();
   if (!state.reviewer && !$("protocolView").hidden) closeProtocol();
 };
+
+// ===== 45-batch.js =====
+// ---------- Проверка группы: несколько работ подряд, только кодом, в браузере ----------
+// Для нормоконтролёра: до 60 файлов .docx за раз (выбор или перетаскивание), каждый до 30 МБ.
+// Каждая работа проверяется кодом по выбранному профилю (readDocx → analyze → runChecks): без ИИ и без сервера.
+// Итог — таблица с сортировкой, сводка по группе и CSV для Excel. Клик по строке открывает работу в основном отчёте
+// тем же путём, что и загрузка одного файла (process). Разметку модуль создаёт сам: секция «Проверка группы»
+// ставится после блока «Работа студента», таблица итогов — в основной колонке над отчётом.
+const BATCH_MAX_FILES = 60;
+const BATCH_MAX_SIZE = 30 * 1024 * 1024;
+// Статус работы в таблице. Это предварительная сортировка по проверке кодом, а не решение.
+const BATCH_STATUS = {
+  rework: { text: "на доработку", cls: "err", rank: 0 },
+  notes: { text: "есть замечания", cls: "warn", rank: 1 },
+  clean: { text: "ошибок не найдено", cls: "ok", rank: 2 },
+  failed: { text: "не проверен", cls: "muted", rank: 3 },
+  run: { text: "проверяю…", cls: "muted", rank: 4 },
+  wait: { text: "в очереди", cls: "muted", rank: 5 },
+};
+const BATCH_CHECKED = ["rework", "notes", "clean"];
+// Общее название вида нарушения (ключ находки из runChecks) — для сводки по группе.
+// Заголовок одной находки бывает с числами («Другой шрифт в 12 абз.»), а здесь нужен вид целиком.
+// Нового ключа здесь нет — берём заголовок первой такой находки.
+const BATCH_KINDS = {
+  "page.margins": "Поля страницы не по стандарту", "page.size": "Формат листа не A4",
+  "page.num": "Нет номера страницы или он не на месте", "page.num.title": "Номер страницы на титульном листе",
+  "page.num.sect": "Раздел с текстом без номера страницы",
+  "text.font": "Другой шрифт в основном тексте", "text.size": "Кегль основного текста не по профилю",
+  "text.line": "Межстрочный интервал не по профилю", "text.indent": "Абзацный отступ не по профилю",
+  "text.align": "Выравнивание основного текста не по профилю", "text.spaces": "Двойные пробелы",
+  "text.none": "Не найден основной текст", "text.empty": "Пустые строки вместо интервалов", "text.hidden": "Скрытый текст в работе",
+  "struct.missing": "Нет обязательных разделов", "struct.order": "Разделы идут не по порядку",
+  "struct.center": "Заголовок структурного элемента не по центру", "struct.upper": "Заголовок структурного элемента не прописными буквами",
+  "struct.dot": "Точка в конце заголовка структурного элемента", "struct.newpage": "Структурный элемент не с новой страницы",
+  "sec.dot": "Точка в конце заголовка раздела",
+  "fig.form": "Подпись рисунка не по форме", "fig.center": "Подпись рисунка не по центру", "tbl.form": "Название таблицы не по форме",
+  "fig.nocap": "Рисунок без подписи", "tbl.nocap": "Таблица без названия",
+  "refs.count": "Источников меньше, чем нужно", "refs.fresh": "Мало свежих источников",
+  "ref.bare": "Источник — голая ссылка", "ref.access": "Электронный источник без даты обращения",
+  "ref.noyear": "Источник без года издания", "ref.volume": "У источника не указан объём или издательство",
+  "cite.dangling": "Ссылка на источник, которого нет в списке", "cite.check": "Номер в скобках: проверить, ссылка ли это",
+  "cite.never": "На часть источников нет ссылок в тексте", "cite.none": "В тексте нет ссылок на источники",
+  "cite.footnotes": "Ссылки оформлены сносками", "intro.missing": "Во введении не найдены ключевые слова",
+};
+// Столбцы таблицы: значение для сортировки и направление при первом нажатии
+const BATCH_COLS = [
+  { id: "n", title: "№", dir: 1, val: (r) => r.n },
+  { id: "name", title: "Файл", dir: 1, val: (r) => r.name },
+  { id: "score", title: "Балл", dir: 1, val: (r) => r.score },
+  { id: "errs", title: "Ошибок", dir: -1, val: (r) => r.errs },
+  { id: "warns", title: "Предупреждений", dir: -1, val: (r) => r.warns },
+  { id: "top", title: "Главные замечания", dir: 1, val: (r) => (r.status === "failed" ? r.reason : r.top[0]) || null },
+  { id: "status", title: "Статус", dir: 1, val: (r) => BATCH_STATUS[r.status].rank },
+];
+const batchSt = {
+  running: false, stop: false,
+  rows: [],                       // [{ idx, n, name, file, status, score, errs, warns, top: [3 строки], kinds: [{ key, label, sev }], reason }]
+  extra: 0,                       // сколько выбранных файлов не взято (больше 60)
+  sort: { col: "n", dir: 1 },
+  profileId: null, profileName: "", startedAt: null,
+  open: -1,                       // строка, открытая в основном отчёте
+};
+
+// ---------- проверка одного файла ----------
+function batchReadFile(f) {
+  if (typeof f.arrayBuffer === "function") return f.arrayBuffer();
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error || new Error("не удалось прочитать файл")); fr.readAsArrayBuffer(f); });
+}
+// Тексты ошибок — те же, что при загрузке одного файла (UI_TEXT в 40-ui.js); свои — если их там нет
+const batchText = (k, d) => (typeof UI_TEXT === "object" && UI_TEXT && typeof UI_TEXT[k] === "string" ? UI_TEXT[k] : d);
+const BATCH_TEXT = {
+  type: () => batchText("type", "Нужен файл .docx. Файл .doc откройте в Word и сохраните как .docx."),
+  size: () => batchText("size", "Файл больше 30 МБ — программа такой не разбирает. Сожмите рисунки в Word и сохраните файл заново."),
+  xml: () => batchText("xml", "Текст документа после распаковки больше 50 МБ — программа такой файл не разбирает, чтобы страница не зависла."),
+  disk: () => batchText("disk", "Не удалось прочитать файл с диска."),
+  lib: () => batchText("lib", "Не загрузилась библиотека для чтения .docx. Проверьте интернет и обновите страницу."),
+  broken: () => batchText("broken", "Файл повреждён или это не .docx. Откройте его в Word и сохраните заново."),
+};
+function batchErrText(e) {
+  const msg = String((e && e.message) || e);
+  if (e && typeof e.uiText === "string") return e.uiText;
+  if (e instanceof ReferenceError && /JSZip/.test(msg)) return BATCH_TEXT.lib();
+  if (/central directory|corrupted zip|is this a zip|end of data|word\/document/i.test(msg)) return BATCH_TEXT.broken();
+  return "Не удалось прочитать файл: " + msg;
+}
+// Из результата runChecks — то, что нужно таблице: балл, счётчики, 3 главных замечания, виды нарушений
+function batchSummarize(R) {
+  const pen = new Map((Array.isArray(R.penalties) ? R.penalties : []).map((p) => [p.key, +p.penalty || 0]));
+  const groups = new Map();
+  R.findings.forEach((f, i) => {
+    const key = f.key || `${f.sev}|${f.title}`;
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { key, sev: f.sev, list: [], i }));
+    g.list.push(f);
+    if (f.sev === "err") g.sev = "err";
+  });
+  const gs = [...groups.values()];
+  const label = (g) => BATCH_KINDS[g.key] || String(g.list[0].title || "");
+  // Главные — сначала ошибки, среди них — с большим штрафом к баллу; по одному на вид
+  const top = gs.slice().sort((a, b) => (a.sev === "err" ? 0 : 1) - (b.sev === "err" ? 0 : 1) || (pen.get(b.key) || 0) - (pen.get(a.key) || 0) || a.i - b.i)
+    .slice(0, 3).map((g) => (g.list.length > 1 ? `${label(g)} (${g.list.length})` : String(g.list[0].title || label(g))));
+  return {
+    status: R.errs > 0 ? "rework" : R.warns > 0 ? "notes" : "clean",
+    score: R.score, errs: R.errs, warns: R.warns, top,
+    kinds: gs.map((g) => ({ key: g.key, sev: g.sev, label: label(g) })), reason: "",
+  };
+}
+async function batchCheckOne(row, P) {
+  const f = row.file;
+  const fail = (reason) => Object.assign(row, { status: "failed", reason });
+  if (!/\.docx$/i.test(f.name)) return fail(BATCH_TEXT.type());
+  if (f.size > BATCH_MAX_SIZE) return fail(BATCH_TEXT.size());
+  let buf;
+  try { buf = await batchReadFile(f); } catch { return fail(BATCH_TEXT.disk()); }
+  try {
+    // Как при загрузке одного файла: огромный текст после распаковки не разбираем, иначе вкладка зависнет
+    if (typeof uiDocxXmlSize === "function" && typeof UI_MAX_XML === "number") {
+      const xml = await uiDocxXmlSize(buf);
+      if (xml !== null && xml > UI_MAX_XML) return fail(BATCH_TEXT.xml());
+    }
+    const D = await readDocx(buf);
+    const A = analyze(D), R = runChecks(A, P);
+    Object.assign(row, batchSummarize(R));
+  } catch (e) { fail(batchErrText(e)); }
+}
+
+// ---------- проверка группы по очереди ----------
+async function batchRun(list) {
+  if (batchSt.running) { toast("Идёт проверка группы. Дождитесь конца или нажмите «Стоп»."); return; }
+  const files = Array.from(list || []).filter((f) => f && typeof f.name === "string");
+  if (!files.length) return;
+  if (typeof JSZip === "undefined") { toast(BATCH_TEXT.lib()); return; }
+  files.sort((a, b) => a.name.localeCompare(b.name, "ru", { numeric: true, sensitivity: "base" }));
+  const taken = files.slice(0, BATCH_MAX_FILES), P = profile();
+  Object.assign(batchSt, {
+    running: true, stop: false, extra: files.length - taken.length, sort: { col: "n", dir: 1 }, open: -1,
+    profileId: P.id, profileName: P.name, startedAt: new Date(),
+    rows: taken.map((f, i) => ({ idx: i, n: i + 1, name: f.name, file: f, status: "wait", score: null, errs: null, warns: null, top: [], kinds: [], reason: "" })),
+  });
+  if (batchSt.extra) toast(`За один раз — не больше ${BATCH_MAX_FILES} файлов. Не взято: ${batchSt.extra}.`);
+  try {
+    batchRender();
+    batchShowOut();
+    for (const row of batchSt.rows) {
+      if (batchSt.stop) break;
+      row.status = "run";
+      batchRenderStatus(); batchRenderRow(row);
+      await batchCheckOne(row, P);
+      batchRenderStatus(); batchRenderSummary(); batchRenderRow(row);
+      await new Promise((r) => setTimeout(r, 0));   // даём странице обновиться и нажать «Стоп»
+    }
+  } finally {
+    // что не успели проверить (остановили или что-то сломалось) — «не проверен», и проверку можно начать заново
+    for (const row of batchSt.rows) if (row.status === "wait" || row.status === "run") Object.assign(row, { status: "failed", reason: batchSt.stop ? "Проверка остановлена." : "Проверка прервалась." });
+    batchSt.running = false;
+  }
+  batchRender();
+  const c = batchCounts();
+  uiAnnounce(`Проверка группы ${batchSt.stop ? "остановлена" : "завершена"}: проверено ${c.checked} из ${c.total}, на доработку — ${c.rework}.`);
+}
+function batchStop() {
+  if (!batchSt.running) return;
+  batchSt.stop = true;
+  batchRenderStatus();
+}
+function batchCounts() {
+  const rows = batchSt.rows, n = (s) => rows.filter((r) => r.status === s).length;
+  return { total: rows.length, checked: rows.filter((r) => BATCH_CHECKED.includes(r.status)).length,
+    rework: n("rework"), notes: n("notes"), clean: n("clean"), failed: n("failed") };
+}
+// Самые частые нарушения: в скольких работах встречается вид нарушения (не число находок)
+function batchTopKinds(limit = 5) {
+  const m = new Map();
+  for (const r of batchSt.rows) {
+    if (!BATCH_CHECKED.includes(r.status)) continue;
+    for (const k of r.kinds) {
+      let x = m.get(k.key);
+      if (!x) m.set(k.key, (x = { key: k.key, label: k.label, sev: k.sev, works: 0, first: m.size }));
+      x.works++;
+      if (k.sev === "err") x.sev = "err";
+    }
+  }
+  return [...m.values()].sort((a, b) => b.works - a.works || (a.sev === "err" ? 0 : 1) - (b.sev === "err" ? 0 : 1) || a.first - b.first).slice(0, limit);
+}
+function batchSorted() {
+  const c = BATCH_COLS.find((x) => x.id === batchSt.sort.col) || BATCH_COLS[0], d = batchSt.sort.dir;
+  return batchSt.rows.slice().sort((a, b) => {
+    const x = c.val(a), y = c.val(b);
+    // пустые значения (работа не проверена) — всегда внизу
+    if (x == null || y == null) return x == null && y == null ? a.n - b.n : x == null ? 1 : -1;
+    const k = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ru", { numeric: true, sensitivity: "base" });
+    return k * d || a.n - b.n;
+  });
+}
+function batchSortBy(col) {
+  const c = BATCH_COLS.find((x) => x.id === col); if (!c) return;
+  batchSt.sort = batchSt.sort.col === col ? { col, dir: -batchSt.sort.dir } : { col, dir: c.dir };
+  batchRenderTable();
+}
+
+// ---------- CSV для Excel: UTF-8 с BOM, разделитель «;», строки через CRLF ----------
+function batchCsvField(v) {
+  let s = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // Excel не должен принять имя файла или заголовок за формулу
+  return /[";\r\n]/.test(s) || /^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function batchCsv() {
+  const head = ["№", "Файл", "Балл", "Ошибок", "Предупреждений", "Главные замечания", "Статус", "Профиль"];
+  const rows = batchSorted().map((r) => [r.n, r.name, r.score, r.errs, r.warns, r.status === "failed" ? r.reason : r.top.join("; "), BATCH_STATUS[r.status].text, batchSt.profileName]);
+  return "\uFEFF" + [head, ...rows].map((l) => l.map(batchCsvField).join(";")).join("\r\n") + "\r\n";
+}
+async function batchDownloadCsv() {
+  if (!batchSt.rows.length || batchSt.running) return;
+  const d = batchSt.startedAt || new Date(), p = (x) => String(x).padStart(2, "0");
+  const filename = `qalyp-gruppa-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.csv`;
+  try { await uiSaveFile({ filename, data: new Blob([batchCsv()], { type: "text/csv;charset=utf-8" }) }); }
+  catch (e) { toast("Не удалось сохранить CSV: " + ((e && e.message) || e)); }
+}
+
+// ---------- открыть работу из таблицы в основном отчёте ----------
+async function batchOpen(i) {
+  const row = batchSt.rows[i]; if (!row) return;
+  if (row.status === "failed") { toast(`Файл «${row.name}» не проверен. ${row.reason}`); return; }
+  if (!BATCH_CHECKED.includes(row.status)) { toast("Эта работа ещё не проверена. Дождитесь её очереди."); return; }
+  if (state.busy) { toast((typeof UI_WAIT === "object" && UI_WAIT && UI_WAIT[state.busy]) || "Подождите: идёт проверка файла."); return; }
+  let buf;
+  try { buf = await batchReadFile(row.file); } catch { toast(BATCH_TEXT.disk()); return; }
+  // тот же путь, что при загрузке одного файла: process → (если показан) uiShowReport.
+  // Строку отмечаем открытой только после того, как работа показана: process может отказать
+  // (идёт исправление файла) или не прочитать файл — тогда прежний отчёт убран и открытой строки нет.
+  const ok = await process(buf, row.name);
+  if (ok === false) {
+    if (!state.R && batchSt.open !== -1) { batchSt.open = -1; batchRenderTable(); }
+    return;
+  }
+  batchSt.open = i;
+  batchRenderTable();
+  if (typeof uiShowReport === "function") uiShowReport();
+  // На широком экране таблица группы стоит над отчётом — показываем итог по открытой работе
+  const s = $("summary"), narrow = typeof matchMedia === "function" && matchMedia("(max-width:860px)").matches;
+  if (!narrow && s && typeof s.scrollIntoView === "function") s.scrollIntoView({ block: "start" });
+}
+
+// ---------- разметка ----------
+function batchRender() { batchRenderStatus(); batchRenderSummary(); batchRenderTable(); }
+function batchRenderStatus() {
+  const c = batchCounts(), run = batchSt.rows.find((r) => r.status === "run");
+  const stop = $("batchStop"), prog = $("batchProgress"), st = $("batchStatus"); if (!st) return;
+  if (stop) stop.hidden = !batchSt.running;
+  if (prog) { prog.hidden = !batchSt.running; prog.max = Math.max(1, c.total); prog.value = c.checked + c.failed; }
+  const extra = batchSt.extra ? ` Не взято файлов: ${batchSt.extra} — за один раз не больше ${BATCH_MAX_FILES}.` : "";
+  let t = "";
+  if (batchSt.running) t = batchSt.stop ? "Останавливаю: дождусь конца текущего файла." : run ? `Проверяю ${run.n} из ${c.total}: ${run.name}` : `Проверено ${c.checked + c.failed} из ${c.total}.`;
+  else if (c.total) t = `${batchSt.stop ? "Остановлено" : "Готово"}: проверено ${c.checked} из ${c.total}.`;
+  st.textContent = t + extra;
+  const csv = $("batchCsv"); if (csv) csv.disabled = batchSt.running || !c.total;
+}
+function batchRenderSummary() {
+  const box = $("batchSum"); if (!box) return;
+  const c = batchCounts(), top = batchTopKinds(5);
+  const chip = (cls, t) => `<span class="chip ${cls}">${esc(t)}</span>`;
+  const P = profile(), other = batchSt.profileId && P.id !== batchSt.profileId, meta = $("batchMeta");
+  if (meta) meta.innerHTML = `Профиль: ${esc(batchSt.profileName)}${batchSt.startedAt ? ` · ${esc(uiDate(batchSt.startedAt.toISOString()))}` : ""}. Проверено кодом, без ИИ.` +
+    (other && !batchSt.running ? ` <span class="bad">Сейчас выбран другой профиль — «${esc(P.name)}».</span> <button class="btn link" id="batchRerun" type="button">Проверить группу заново по нему</button>` : "");
+  const rerun = $("batchRerun"); if (rerun) rerun.onclick = () => batchRun(batchSt.rows.map((r) => r.file));
+  box.innerHTML = `<div class="counts">${chip("muted", `Работ: ${c.total}`)}${chip("err", `На доработку: ${c.rework}`)}${chip("warn", `Есть замечания: ${c.notes}`)}${chip("ok", `Ошибок не найдено: ${c.clean}`)}${c.failed ? chip("muted", `Не проверено: ${c.failed}`) : ""}</div>
+    <h3 style="margin-top:12px">Самые частые нарушения в группе</h3>
+    ${!c.checked ? `<p class="note">Пока нет проверенных работ.</p>`
+      : !top.length ? `<p class="note">Программа не нашла нарушений ни в одной проверенной работе.</p>`
+      : `<ol id="batchTop">${top.map((k) => `<li>${esc(k.label)} — ${k.works} из ${c.checked} ${uiPlural(c.checked, "работы", "работ", "работ")}</li>`).join("")}</ol>`}`;
+  const cnt = $("batchCount"); if (cnt) cnt.textContent = `Таблица работ (${c.total})`;
+}
+function batchRenderTable() {
+  const t = $("batchTable"); if (!t) return;
+  const s = batchSt.sort;
+  const head = BATCH_COLS.map((c) => {
+    const on = s.col === c.id, arrow = on ? (s.dir > 0 ? " ↑" : " ↓") : "";
+    return `<th scope="col"${on ? ` aria-sort="${s.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="btn link" data-batch-sort="${c.id}">${esc(c.title)}<span aria-hidden="true">${arrow}</span></button></th>`;
+  }).join("");
+  t.innerHTML = `<caption class="sr-only">Работы группы</caption><thead><tr>${head}</tr></thead><tbody>${batchSorted().map(batchRowHtml).join("")}</tbody>`;
+}
+function batchRowHtml(r) {
+  const st = BATCH_STATUS[r.status], num = (v) => (v == null ? "—" : esc(v));
+  const main = r.status === "failed" ? `<span class="note">${esc(r.reason)}</span>`
+    : r.top.length ? `<ul>${r.top.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : BATCH_CHECKED.includes(r.status) ? "—" : "";
+  return `<tr data-batch-row="${r.idx}"${batchSt.open === r.idx ? ` class="cur" aria-current="true"` : ""}><td class="num">${r.n}</td>` +
+    `<td><button type="button" class="btn link" data-batch-open="${r.idx}"><span class="sr-only">Открыть в отчёте: </span>${esc(r.name)}</button></td>` +
+    `<td class="num">${num(r.score)}</td><td class="num">${num(r.errs)}</td><td class="num">${num(r.warns)}</td><td>${main}</td>` +
+    `<td><span class="rstat ${st.cls}">${esc(st.text)}</span></td></tr>`;
+}
+// Во время проверки меняется одна строка: при сортировке по номеру её место не меняется — перерисовываем только её
+function batchRenderRow(r) {
+  const tr = batchSt.sort.col === "n" ? document.querySelector(`#batchTable tr[data-batch-row="${r.idx}"]`) : null;
+  if (tr) tr.outerHTML = batchRowHtml(r); else batchRenderTable();
+}
+function batchShowOut() {
+  const out = $("batchOut"); if (!out) return;
+  out.hidden = false;
+  if (typeof matchMedia === "function" && matchMedia("(max-width:860px)").matches && typeof out.scrollIntoView === "function") out.scrollIntoView({ block: "start" });
+}
+
+function batchInit() {
+  if ($("batchBox")) return;
+  const css = document.createElement("style");
+  css.textContent = "#batchTable tbody tr{cursor:pointer}#batchTable tbody tr:hover td{background:var(--surface-2)}#batchTable tr.cur td{background:var(--accent-soft)}" +
+    "#batchTable th .btn.link{color:inherit;font:inherit;min-height:0;text-align:left;text-decoration:underline dotted;text-underline-offset:3px}" +
+    "#batchTable td ul{margin:0;padding-left:16px}#batchTable td:nth-child(2){min-width:150px}#batchTable td .btn.link{text-align:left;overflow-wrap:break-word;word-break:normal}" +
+    "#batchTable .rstat{white-space:nowrap}#batchTop{margin:4px 0 0;padding-left:20px;display:grid;gap:2px;font-size:13.5px}" +
+    "#batchOut details>summary{cursor:pointer;font-weight:600;font-size:14px;margin-bottom:6px}#batchMeta .bad{color:var(--err)}";
+  // Высота левой колонки (aside) со своей прокруткой задана в src/index.html: с этой секцией колонка выше экрана.
+  document.head.appendChild(css);
+
+  const box = document.createElement("section");
+  box.className = "panel"; box.id = "batchBox"; box.setAttribute("aria-labelledby", "h-batch");
+  box.innerHTML = `<div class="step">Для нормоконтролёра</div>
+    <h2 id="h-batch">Проверка группы</h2>
+    <div class="drop" id="batchDrop" tabindex="0" role="button" aria-label="Выбрать работы группы: несколько файлов .docx" aria-describedby="batchHint">
+      <strong>Перетащите работы группы сюда</strong>
+      <small>или нажмите, чтобы выбрать несколько .docx</small>
+    </div>
+    <input class="hidden-input" type="file" id="batchFile" accept=".docx" multiple tabindex="-1" aria-hidden="true">
+    <p class="note" id="batchHint"><b>Файлы проверяются в браузере и никуда не отправляются.</b> До ${BATCH_MAX_FILES} файлов за раз, каждый до 30 МБ. Программа проверяет оформление по выбранному профилю, без ИИ.</p>
+    <div class="actions"><button class="btn" id="batchStop" type="button" hidden>Стоп</button></div>
+    <progress id="batchProgress" max="1" value="0" hidden style="width:100%"></progress>
+    <div class="note" id="batchStatus" role="status"></div>`;
+
+  const out = document.createElement("section");
+  out.className = "panel"; out.id = "batchOut"; out.hidden = true; out.setAttribute("aria-labelledby", "h-batch-out");
+  out.innerHTML = `<div class="ai-head"><div><h2 id="h-batch-out">Итог по группе</h2>
+      <p class="note" id="batchMeta" style="margin-top:4px"></p></div>
+      <div class="actions"><button class="btn" id="batchCsv" type="button" disabled>Скачать CSV</button></div></div>
+    <p class="note">Статус в таблице — предварительный: по проверке оформления кодом. Решение принимает нормоконтролёр.</p>
+    <div id="batchSum"></div>
+    <details open><summary id="batchCount">Таблица работ</summary>
+      <p class="note" style="margin:0 0 6px">Нажмите на строку, чтобы открыть работу в отчёте. Нажмите на заголовок столбца, чтобы отсортировать.</p>
+      <div class="tablewrap"><table id="batchTable"></table></div></details>`;
+
+  // Секция — после блока «Работа студента»; если его нет — в конец основной колонки
+  const head = [...document.querySelectorAll("h1, h2, h3")].find((h) => /Работа студента/i.test(h.textContent || ""));
+  const student = (head && head.closest("section, .panel")) || ($("drop") && $("drop").closest("section, .panel")) || null;
+  const main = document.querySelector("main") || document.body;
+  if (student && student.parentNode) student.insertAdjacentElement("afterend", box); else main.appendChild(box);
+  // Таблица итогов — в основной колонке над отчётом (в узкой колонке слева ей тесно)
+  const summary = $("summary");
+  if (box.parentNode === main) box.insertAdjacentElement("afterend", out);
+  else if (summary && summary.parentNode) summary.parentNode.insertBefore(out, summary);
+  else main.appendChild(out);
+
+  const drop = $("batchDrop"), input = $("batchFile");
+  drop.onclick = () => input.click();
+  drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
+  input.onchange = (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; batchRun(fs); };
+  ["dragover", "dragenter"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => batchRun(e.dataTransfer && e.dataTransfer.files));
+  $("batchStop").onclick = batchStop;
+  $("batchCsv").onclick = batchDownloadCsv;
+  $("batchTable").addEventListener("click", (e) => {
+    const t = e.target && e.target.closest ? e.target : null; if (!t) return;
+    const sb = t.closest("[data-batch-sort]"); if (sb) { batchSortBy(sb.dataset.batchSort); return; }
+    const tr = t.closest("tr[data-batch-row]"); if (tr) batchOpen(+tr.dataset.batchRow);
+  });
+  // Сменили профиль — подсказываем, что таблица собрана по прежнему
+  const sel = $("profileSel"); if (sel) sel.addEventListener("change", () => { if (batchSt.rows.length) batchRenderSummary(); });
+}
+try { batchInit(); } catch (e) { console.error("Проверка группы не запустилась:", e); }
 
 // ===== 50-ai.js =====
 // ---------- ИИ: клиент API, согласие, персональные данные, введение и заключение, источники ----------
@@ -1566,7 +2098,7 @@ const API_ERRORS = {
   bad_request: "Сервер не принял запрос. Повтор без изменений не поможет.",
   too_large: "Текст слишком большой для проверки. Повтор не поможет: сократите текст.",
   rate_limited: "Слишком много запросов подряд. Подождите несколько минут и запустите снова.",
-  daily_limit: "Дневной лимит ИИ-проверок на сервере исчерпан. Проверка оформления работает, ИИ-проверка будет доступна завтра.",
+  daily_limit: "Дневной лимит ИИ-проверок на сервере исчерпан. Проверка оформления работает.",
   ai_unavailable: "ИИ на сервере не подключён. Проверка оформления работает.",
   ai_refused: "ИИ отказался разбирать этот текст. Повтор не поможет — проверьте этот раздел вручную.",
   ai_bad_answer: "ИИ ответил не по форме, программа отбросила ответ. Можно запустить ещё раз; если повторится — проверьте вручную.",
@@ -1579,6 +2111,9 @@ const API_ERRORS = {
 function apiErrorText(e) {
   const c = e && e.code, t = API_ERRORS[c];
   if (t && (c === "bad_request" || c === "rate_limited") && e.apiMessage) return `${t} Сервер: ${e.apiMessage}`;
+  // суточных лимитов на сервере несколько (все ИИ-проверки, токены, разборы методичек): какой сработал
+  // и когда ИИ снова будет доступен, знает только сервер — показываем его текст
+  if (c === "daily_limit" && e.apiMessage) return e.apiMessage;
   return t || (e && e.apiMessage) || "Не удалось выполнить проверку.";
 }
 
@@ -1608,11 +2143,11 @@ function aiAvailability() {
 }
 function aiButtonsState() {
   const av = aiAvailability(), running = !!aiCurrent, btn = $("aiRun");
-  btn.disabled = running || !(av.ai || av.lookup) || !state.R;
-  btn.textContent = !av.ai && av.lookup ? "Сверить источники с базами" : "Запустить ИИ-проверку";
+  btn.disabled = running || !(av.ai || av.lookup) || !state.R || !!state.busy;
+  uiSetText(btn, !av.ai && av.lookup ? "Сверить источники с базами" : "Запустить ИИ-проверку");
   $("aiStop").hidden = !running;
-  $("aiStatus").textContent = running ? "Идёт проверка. Её можно остановить."
-    : av.reason || `Тексты уходят на сервер только после вашего согласия.${state.health && state.health.model ? " Модель: " + state.health.model + "." : ""}`;
+  uiSetText($("aiStatus"), running ? "Идёт проверка. Её можно остановить."
+    : av.reason || `Тексты уходят на сервер только после вашего согласия.${state.health && state.health.model ? " Модель: " + state.health.model + "." : ""}`);
 }
 
 // ---------- согласие ----------
@@ -1755,10 +2290,11 @@ function aiContentBody(d) {
 }
 async function aiRunAll() {
   const av = aiAvailability();
-  if (!(av.ai || av.lookup) || !state.A || !state.R || aiCurrent) return;
+  if (!(av.ai || av.lookup) || !state.A || !state.R || aiCurrent || state.busy) return;
   const docSeq = state.docSeq;
   if (!(await askConsent(av.ai ? "work" : "lookup"))) return;
-  if (docSeq !== state.docSeq || aiCurrent || !state.A) return;
+  // пока человек читал окно согласия, могли открыть другую работу — тогда ничего не отправляем
+  if (docSeq !== state.docSeq || aiCurrent || !state.A || state.busy) return;
   const data = aiCollect(state.A, state.R);
   const run = { id: ++aiSeq, docSeq, ctl: new AbortController(), data };
   aiCurrent = run;
@@ -1783,7 +2319,10 @@ async function aiRunAll() {
   if (aiCurrent !== run) return;
   aiCurrent = null; state.ai.status = "done";
   aiRender(); renderSummary(); aiButtonsState();
-  uiAnnounce("ИИ-проверка завершена.");
+  // о сбоях говорим один раз здесь: баннеры в отчёте перерисовываются и не должны перечитываться скринридером
+  const failed = [["content", "введение и заключение"], ["refsAi", "ИИ по источникам"], ["lookup", "сверка с базами"]]
+    .filter(([k]) => state.ai[k].state === "error").map(([k, t]) => `${t}: ${apiErrorText(state.ai[k].error)}`);
+  uiAnnounce("ИИ-проверка завершена." + (failed.length ? " Не выполнено — " + failed.join("; ") : ""));
 }
 // reason: "stop" — кнопка «Остановить»; "newdoc" — открыта другая работа (её отчёт ИИ не получит)
 function aiCancel(reason) {
@@ -1846,25 +2385,35 @@ const AI_REF_STATUS = {
   stopped: { label: "Проверка остановлена", sev: "muted" },
   not_sent: { label: "Не проверялся: в списке больше 300 записей", sev: "muted" },
 };
-// lk — элемент ответа /api/refs/lookup, ai — элемент ответа /api/ai/refs (или null)
+// lk — элемент ответа /api/refs/lookup, ai — элемент ответа /api/ai/refs (или null).
+// Правило выбрано по замеру на 185 записях (eval/refs.mjs, 18.11.2026): «высокий риск» — если база не подтвердила
+// запись и ИИ видит признаки или расхождение с тем, что знает, либо если в базах записи нет и ИИ издание не узнаёт.
+// Без ответа ИИ «высокий риск» не ставится: одной базы для такого вывода мало.
+// Признаки подделки — противоречия внутри записи и с памятью модели. Неполная запись и голая ссылка —
+// дефекты оформления: они ведут к «Проверьте вручную», но не к «высокому риску» (у настоящих студенческих
+// списков их много).
+const AI_FAKE_SIGNS = ["mismatch", "memory_conflict", "future", "not_source"];
 function aiRefStatus(lk, ai) {
   const flags = ai && Array.isArray(ai.flags) ? ai.flags : [];
   const st = lk && lk.status;
+  const signal = flags.some((f) => AI_FAKE_SIGNS.includes(f)) || (ai && ai.recognized === "yes_conflict");
+  const knows = ai && ai.recognized === "yes_matches";
   if (st === "confirmed") return "found";
   if (st === "similar") return "similar";
   if (st === "not_found") {
-    if (flags.length || (ai && ai.recognized === "yes_conflict")) return "high";
-    if (ai && ai.recognized === "yes_matches") return "ai_knows";
-    return "not_found";
+    if (!ai) return "not_found";
+    if (signal || !knows) return "high";
+    return "ai_knows";
   }
-  if (st === "not_checkable") return flags.length ? "manual" : "not_checkable";
-  return flags.length ? "manual" : "lookup_error";
+  if (signal) return "high";
+  if (ai && (!knows || flags.length)) return "manual";
+  return st === "not_checkable" ? "not_checkable" : ai ? "not_checkable" : "lookup_error";
 }
 function aiRefLabel(key, ai) {
   const base = AI_REF_STATUS[key].label;
   if (key !== "manual") return base;
   const why = (ai && ai.note) || (ai ? ai.flags.map((f) => AI_FLAGS[f]).join("; ") : "");
-  return why ? `${base}: ${why}` : base;
+  return why ? `${base}: ${why}` : `${base}: автоматически не подтверждается, ИИ издание не узнаёт`;
 }
 function aiGuessTitle(t) {
   let s = String(t || "").replace(/\s+/g, " ").trim();
@@ -1893,10 +2442,13 @@ function aiRefRows() {
 const AI_INTRO_ST = { found: ["Есть", "ok"], not_found: ["Не найдено", "err"], unclear: ["Неясно — посмотрите сами", "warn"] };
 const AI_TASK_ST = { answered: ["Есть вывод", "ok"], partly: ["Частично", "warn"], not_answered: ["Нет вывода", "err"], unclear: ["Неясно — посмотрите сами", "warn"] };
 const aiThinking = (t) => `<div class="thinking"><span class="dot" aria-hidden="true"></span>${esc(t)}</div>`;
+// Сервер отдаёт cached: true, если ответ ИИ взят из его кеша (такой же запрос уже был) — говорим об этом прямо
+const AI_CACHED_NOTE = "ответ из кеша сервера: такой же запрос уже выполнялся";
+const aiCachedHtml = (j, prefix = "") => (uiIsObj(j) && j.cached === true ? `<p class="note cached">${esc(prefix + AI_CACHED_NOTE)}</p>` : "");
 function aiPartState(p, what) {
   if (p.state === "pending") return aiThinking(what);
   if (p.state === "stopped") return `<p class="note">Остановлено.</p>`;
-  if (p.state === "error") return `<div class="banner err" role="alert">${esc(apiErrorText(p.error))}</div>`;
+  if (p.state === "error") return `<div class="banner err">${esc(apiErrorText(p.error))}</div>`;
   return "";
 }
 function aiContentCounts() {
@@ -1914,13 +2466,13 @@ function aiContentHtml() {
   const j = aiNormContent(c.data);
   const cutNote = [d.introCut ? `введение длиннее ${AI_LIMITS.introChars} знаков — ИИ получил начало` : "", d.conclCut ? `заключение длиннее ${AI_LIMITS.conclChars} знаков — ИИ получил начало` : "",
     !d.intro.trim() ? "раздел «Введение» не найден" : "", !d.concl.trim() ? "раздел «Заключение» не найден — ответы на задачи не проверялись" : ""].filter(Boolean);
-  const inj = j.injection.length ? `<div class="banner err" role="alert"><b>В тексте есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет. Посмотрите сами: ${j.injection.map((q) => `<span class="q">${esc(q)}</span>`).join("")}${uiDecideHtml("ai|inj|content", "обращение к ИИ в тексте")}</div>` : "";
+  const inj = j.injection.length ? `<div class="banner err"><b>В тексте есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет. Посмотрите сами: ${j.injection.map((q) => `<span class="q">${esc(q)}</span>`).join("")}${uiDecideHtml("ai|inj|content", "обращение к ИИ в тексте")}</div>` : "";
   const intro = j.intro.length ? `<ul class="crit">${j.intro.map((e) => { const [t, sev] = AI_INTRO_ST[e.status]; const key = "ai|intro|" + e.id;
     return `<li><div class="head"><span class="rstat ${sev}">${esc(t)}</span><b>${esc(e.title)}</b>${/^r\d/.test(e.id) ? `<span class="note">правило методички</span>` : ""}</div>${e.quote ? `<q>${esc(e.quote)}</q>` : ""}${uiDecideHtml(key, e.title)}</li>`; }).join("")}</ul>` : `<p class="note">ИИ не вернул ни одного элемента введения.</p>`;
   const tasks = j.tasks.length ? `<div class="tablewrap"><table><thead><tr><th>Задача из введения</th><th>Вывод в заключении</th><th>Цитата из заключения</th><th>Примечание</th></tr></thead><tbody>${j.tasks.map((t, i) => { const [lab, sev] = AI_TASK_ST[t.status];
     return `<tr><td>${esc(t.task)}${uiDecideHtml("ai|task|" + i, t.task)}</td><td><span class="rstat ${sev}">${esc(lab)}</span></td><td>${t.quote ? `<span class="q">${esc(t.quote)}</span>` : "—"}</td><td>${esc(t.note)}</td></tr>`; }).join("")}</tbody></table></div>`
     : `<p class="note">ИИ не нашёл во введении явного перечня задач.</p>`;
-  return `<section class="ai-part">${head}${inj}
+  return `<section class="ai-part">${head}${aiCachedHtml(c.data)}${inj}
     ${cutNote.length ? `<p class="note">${esc(cutNote.join("; "))}.</p>` : ""}
     <h3 style="font-size:14px">Элементы введения</h3>${intro}
     <h3 style="font-size:14px">Задачи и выводы по ним</h3>${tasks}
@@ -1950,10 +2502,10 @@ function aiRefsHtml() {
     } else if (r.aiMissing) out.push(`<div class="note">ИИ не ответил по этой записи.</div>`);
     return out.join("");
   };
-  return `<section class="ai-part">${head}
+  return `<section class="ai-part">${head}${a.refsAi.state === "done" ? aiCachedHtml(a.refsAi.data, "Вывод ИИ по записям — ") : ""}
     <div class="banner big"><b>ИИ и базы не решают, существует ли источник.</b> Они отмечают записи, которые стоит открыть и сверить. Решение — за руководителем.</div>
-    ${errs.map((e) => `<div class="banner err" role="alert">${esc(e)}</div>`).join("")}
-    ${inj.length ? `<div class="banner err" role="alert"><b>В списке источников есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет: ${inj.map((q) => `<span class="q">${esc(q)}</span>`).join("")}</div>` : ""}
+    ${errs.map((e) => `<div class="banner err">${esc(e)}</div>`).join("")}
+    ${inj.length ? `<div class="banner err"><b>В списке источников есть обращение к ИИ или к проверяющему.</b> ИИ его не выполняет: ${inj.map((q) => `<span class="q">${esc(q)}</span>`).join("")}</div>` : ""}
     ${pending ? aiThinking(`Сверяю ${Math.min(d.refsAll.length, AI_LIMITS.refs)} записей с базами и ИИ…`) : `<p><span class="rstat ${high ? "err" : "muted"}">Высокий риск — проверьте вручную: ${high}</span> <span class="note">Найдены в базах: ${found} из ${rows.length}.</span></p>`}
     <div class="tablewrap"><table><thead><tr><th>№</th><th>№ в тексте</th><th>Источник</th><th>Итог</th><th>Что найдено</th><th>Ссылки</th></tr></thead><tbody>
     ${rows.map((r) => { const dec = state.reviewer && !["pending", "found", "not_checkable", "stopped", "not_sent"].includes(r.key) ? uiDecideHtml("ai|ref|" + r.n, r.shown) : "";
@@ -2039,7 +2591,7 @@ function methodButtonsState() {
   const why = methodUnavailable(), running = !!methodCurrent;
   $("methodRun").disabled = running || !!why;
   $("methodStop").hidden = !running;
-  if (!running && !methodMsgSet) $("methodStatus").textContent = why;
+  if (!running && !methodMsgSet) uiSetText($("methodStatus"), why);
 }
 
 // ---------- чтение методички ----------
@@ -2054,11 +2606,15 @@ function methodFileBuf(f) {
 async function methodReadFile(f) {
   if (/\.pdf$/i.test(f.name)) return methodStatus("PDF программа не читает: откройте его, скопируйте текст и вставьте в поле.", "warn");
   if (/\.doc$/i.test(f.name)) return methodStatus("Файл .doc программа не читает: откройте его в Word и сохраните как .docx.", "warn");
+  if (f.size > UI_MAX_FILE) return methodStatus("Файл больше 30 МБ — программа такой не читает. Вставьте в поле только разделы об оформлении.", "warn");
   try {
     let text;
     if (/\.txt$/i.test(f.name)) text = await methodFileText(f);
     else if (/\.docx$/i.test(f.name)) {
-      const D = await readDocx(await methodFileBuf(f));
+      const buf = await methodFileBuf(f);
+      const xml = await uiDocxXmlSize(buf);
+      if (xml !== null && xml > UI_MAX_XML) return methodStatus("Текст методички после распаковки больше 50 МБ — программа такой файл не читает. Вставьте в поле только разделы об оформлении.", "warn");
+      const D = await readDocx(buf);
       text = Array.from(D.docXml.getElementsByTagName("w:p")).map((p) => Array.from(p.getElementsByTagName("w:t")).map((t) => t.textContent).join("")).filter((s) => s.trim()).join("\n");
     } else return methodStatus("Нужен файл .docx или .txt.", "warn");
     $("methodText").value = text;
@@ -2142,7 +2698,7 @@ function methodPrepare(j, text) {
   const rv = { rules, title: uiStr(doc.title, 160), workTypes, workType: workTypes[0] || "course",
     chars: Number.isInteger(j.chars) ? j.chars : text.length, sentChars: text.length,
     methodHash: typeof j.methodHash === "string" && /^[0-9a-f]{64}$/i.test(j.methodHash) ? j.methodHash.toLowerCase() : null,
-    promptVersion: uiStr(j.promptVersion, 40), model: uiStr(j.model, 80), enabled: {}, edits: {}, choice: {}, errors: {}, conflictSig: null };
+    promptVersion: uiStr(j.promptVersion, 40), model: uiStr(j.model, 80), cached: j.cached === true, enabled: {}, edits: {}, choice: {}, errors: {}, conflictSig: null };
   // По умолчанию применяются только правила с найденной цитатой
   for (const r of rules) if (r.check !== "manual") rv.enabled[r.id] = r.quoteFound;
   return rv;
@@ -2244,7 +2800,8 @@ function methodRenderReview(focus = false) {
   box.innerHTML = `
     <div><div class="step">Экран подтверждения</div>
       <h2 id="h-mr" tabindex="-1">Правила из методички <span class="ai-badge">Вывод ИИ</span></h2>
-      <p class="note" style="margin-top:4px">Правила выписал ИИ${rv.model ? " (" + esc(rv.model) + ")" : ""}${rv.title ? ` из документа «${esc(rv.title)}»` : ""}. Сверьте цитаты и значения: ИИ может ошибаться. Профиль начнёт работать только после кнопки «Применить профиль».</p></div>
+      <p class="note" style="margin-top:4px">Правила выписал ИИ${rv.model ? " (" + esc(rv.model) + ")" : ""}${rv.title ? ` из документа «${esc(rv.title)}»` : ""}. Сверьте цитаты и значения: ИИ может ошибаться. Профиль начнёт работать только после кнопки «Применить профиль».</p>
+      ${rv.cached ? `<p class="note cached">${esc(AI_CACHED_NOTE)}</p>` : ""}</div>
     <div class="mr-sum" id="mrSum"></div>
     <div class="actions"><label for="mrWork">Вид работы</label><select id="mrWork" style="width:auto">${types.map((w) => `<option value="${esc(w)}"${w === rv.workType ? " selected" : ""}>${esc(UI_WORK[w])}</option>`).join("")}</select></div>
     <div id="mrConflicts" style="display:grid;gap:8px"></div>
@@ -2261,7 +2818,7 @@ function methodRenderReview(focus = false) {
 function methodRefresh() {
   const rv = state.method; if (!rv || !$("mrApply")) return;
   const plan = methodPlan(rv);
-  for (const r of rv.rules) { const el = $("mrErr-" + r.id); if (el) el.textContent = (rv.enabled[r.id] && rv.errors[r.id]) || ""; }
+  for (const r of rv.rules) uiSetText($("mrErr-" + r.id), (rv.enabled[r.id] && rv.errors[r.id]) || "");
   const sig = JSON.stringify(plan.conflicts.map((c) => [c.param, c.rules.map((r) => [r.id, methodEff(rv, r)])]));
   if (sig !== rv.conflictSig) { rv.conflictSig = sig; $("mrConflicts").innerHTML = methodConflictsHtml(rv, plan); }
   $("mrSum").innerHTML = methodSumHtml(rv);
@@ -2427,20 +2984,26 @@ $("profileDelete").onclick = () => {
 // ===== 70-fix.js =====
 // ---------- Автоисправление ----------
 // fixDocx() заново читает исходный .docx, правит оформление по профилю и отдаёт копию на скачивание.
-// После исправления пишет state.fixLog = [{ title, count }] — что и сколько раз изменено или пропущено.
+// После исправления пишет state.fixLog = [{ title, count }] — что и сколько раз изменено или пропущено
+// (пропущенное начинается с «Пропущено:» или «Проверьте вручную:»). Если файл не сохранён (сверка до и после
+// не сошлась, ошибка, не удалось сохранить) — fixLog остаётся null, причина — в state.fixError.
 // Правила, чтобы не испортить настоящую работу:
 //  - абзац удаляется, только если в нём нет ничего, кроме w:pPr, пустых w:r, закладок и w:proofErr;
 //    закладки удалённого абзаца переносятся в оставленный соседний пустой абзац;
+//    пустые строки перед заголовком, который из-за них стоит на новой странице, заменяются разрывом страницы;
 //  - новые элементы в w:pPr, w:rPr, w:sectPr вставляются на своё место по схеме OOXML;
 //  - не меняются шрифт и кегль формул (m:r), надстрочных и подстрочных знаков, ссылок на сноски,
-//    символов (w:sym) и скрытого текста; таблицы не трогаются;
+//    символов (w:sym, шрифты Symbol, Wingdings, Webdings, MT Extra) и скрытого текста; таблицы не трогаются;
+//  - не трогаются листинги кода (моноширинный шрифт или стиль «код», «листинг»), абзацы с формулами
+//    и объектами не выравниваются и не сдвигаются, похожие на заголовок абзацы не выравниваются по ширине;
 //  - альбомные разделы не трогаются (в журнале — «Пропущено»), w:gutter учитывается;
-//  - слова не меняются, кроме подписей рисунков, точки в конце заголовков и двойных пробелов.
+//  - слова не меняются, кроме подписей рисунков и названий таблиц, точки в конце заголовков,
+//    двойных пробелов и пробелов в начале абзаца;
+//  - перед выдачей файла сверяется число формул, объектов, таблиц, рисунков, сносок, примечаний, закладок
+//    и полей, текст каждого абзаца и числа в атрибутах; если что-то не сошлось — файл не отдаётся.
 // Всё внутреннее спрятано в AUTOFIX, наружу — только fixDocx (общая область видимости со всеми модулями).
 const AUTOFIX = (() => {
   const XML_NS = "http://www.w3.org/XML/1998/namespace";
-  const M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math";
-  const A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
   const TW_PER_MM = 1440 / 25.4, TW_PER_CM = 14400 / 25.4;
   const rank = (list) => { const m = new Map(); list.forEach((n, i) => n.split("|").forEach(x => m.set(x, i))); return m; };
   // Порядок дочерних элементов по схеме (CT_PPr, CT_RPr/CT_ParaRPr, CT_SectPr)
@@ -2455,13 +3018,32 @@ const AUTOFIX = (() => {
     sectPr: rank(["headerReference|footerReference", "footnotePr", "endnotePr", "type", "pgSz", "pgMar", "paperSrc", "pgBorders", "lnNumType", "pgNumType",
       "cols", "formProt", "vAlign", "noEndnote", "titlePg", "textDirection", "bidi", "rtlGutter", "docGrid", "printerSettings", "sectPrChange"]),
   };
-  const LOG_ORDER = ["Поля страницы", "Титульный лист без номера", "Шрифт и кегль", "Межстрочный интервал", "Абзацный отступ", "Выравнивание", "Заголовки по центру без отступа",
-    "Точка в конце заголовка", "Разделы с новой страницы", "Подписи рисунков", "Двойные пробелы", "Лишние пустые строки",
-    "Пропущено: альбомный раздел", "Пропущено: номер на титульном листе", "Пропущено: отступ в списках", "Пропущено: абзацы с формулами", "Пропущено: скрытый текст"];
+  const LOG_ORDER = ["Поля страницы", "Титульный лист без номера", "Шрифт и кегль", "Межстрочный интервал", "Абзацный отступ", "Выравнивание",
+    "Пробелы и табуляция в начале абзаца", "Заголовки по центру без отступа", "Заголовки прописными", "Точка в конце заголовка", "Разделы с новой страницы",
+    "Подписи рисунков", "Названия таблиц", "Двойные пробелы", "Лишние пустые строки",
+    "Проверьте вручную: таблица шире текста",
+    "Пропущено: неверные значения в профиле", "Пропущено: альбомный раздел", "Пропущено: номер на титульном листе", "Пропущено: отступ в списках",
+    "Пропущено: абзацы с формулами", "Пропущено: похоже на заголовок", "Пропущено: листинги кода", "Пропущено: символьные шрифты",
+    "Пропущено: похоже на текст, а не на подпись", "Пропущено: название таблицы не в одну строку", "Пропущено: пустые строки перед заголовком",
+    "Пропущено: скрытый текст"];
   const BODY_REGIONS = new Set(["intro", "body", "concl", "refs"]);
+  // Шрифты, в которых коды букв означают другие знаки (Δ в Symbol — это «D»): их не меняем
+  const SYMBOL_FONT = /^(symbol|wingdings( 2| 3)?|webdings|mt extra|zapf ?dingbats|marlett|bookshelf symbol 7)$/i;
+  // Моноширинные шрифты листингов
+  const MONO_FONT = /^(courier( new)?|consolas|lucida console|lucida sans typewriter|menlo|monaco|andale mono|source code pro|dejavu sans mono|liberation mono|noto (sans )?mono|roboto mono|ubuntu mono|jetbrains mono|fira (code|mono)|cascadia (code|mono)|pt mono|sf mono|inconsolata|ocr a extended)$/i;
+  // Стиль листинга по имени: «Код программы», «Листинг», «Code», «HTML Preformatted», «Plain Text», «Macro Text»
+  const CODE_STYLE = [/(^|[^а-яё])(код|листинг)([^а-яё]|$)/i, /\b(code|listing|macro)\b|preformatted|plain ?text/i];
+  const normName = (f) => String(f || "").replace(/\s+/g, " ").trim().toLowerCase();
 
   // Пространство имён и префикс WordprocessingML берём из самого документа (бывает Strict OOXML)
   let W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main", WP = "w", STRICT = false;
+  function useNs(doc) {
+    const root = doc.documentElement;
+    W = root.namespaceURI || "http://schemas.openxmlformats.org/wordprocessingml/2006/main"; WP = root.prefix || "w"; STRICT = /purl\.oclc\.org/.test(W);
+  }
+  // Формулы: пространство имён Office Math (Transitional или Strict)
+  const isMathNs = (ns) => /\/math$/.test(ns || "");
+  const mathIn = (el, local) => Array.from(el.getElementsByTagNameNS("*", local)).filter(n => isMathNs(n.namespaceURI));
   // В Strict выравнивание «start»/«end» вместо «left»/«right»
   const jcVal = (v) => !STRICT ? v : v === "left" ? "start" : v === "right" ? "end" : v;
   const relId = (el) => { for (const a of el.attributes) if (a.localName === "id" && /relationships$/.test(a.namespaceURI || "")) return a.value; return null; };
@@ -2497,13 +3079,13 @@ const AUTOFIX = (() => {
   // Элемент принадлежит самому абзацу p, а не надписи, формуле или вложенному абзацу внутри него
   function ownedBy(node, p) {
     for (let x = node.parentNode; x && x !== p; x = x.parentNode) {
-      if (x.namespaceURI === M_NS) return false;
+      if (isMathNs(x.namespaceURI)) return false;
       if (x.namespaceURI === W && (x.localName === "txbxContent" || x.localName === "p")) return false;
     }
     return true;
   }
   const own = (p, local) => Array.from(p.getElementsByTagNameNS(W, local)).filter(n => ownedBy(n, p));
-  const has = (p, ns, local) => p.getElementsByTagNameNS(ns, local).length > 0;
+  const has = (p, local) => p.getElementsByTagNameNS(W, local).length > 0;
   const textOf = (ts) => ts.map(t => t.textContent).join("");
   function setText(t, s) {
     t.textContent = s;
@@ -2533,13 +3115,14 @@ const AUTOFIX = (() => {
       if (dd) { S.rDef = kid(kid(dd, "rPrDefault"), "rPr"); S.pDef = kid(kid(dd, "pPrDefault"), "pPr"); }
       for (const s of sx.getElementsByTagNameNS(W, "style")) {
         const id = wa(s, "styleId"); if (!id) continue;
-        S.map[id] = { basedOn: wa(kid(s, "basedOn"), "val"), pPr: kid(s, "pPr"), rPr: kid(s, "rPr") };
+        S.map[id] = { id, name: wa(kid(s, "name"), "val") || "", basedOn: wa(kid(s, "basedOn"), "val"), pPr: kid(s, "pPr"), rPr: kid(s, "rPr") };
         if (wa(s, "type") === "paragraph" && /^(1|true|on)$/.test(wa(s, "default") || "")) S.defPara = id;
       }
     }
     const tx = D.themeXml;
     if (tx) {
-      const face = (n) => { const f = tx.getElementsByTagNameNS(A_NS, n)[0]; const l = f && Array.from(f.children).find(c => c.localName === "latin"); return l ? l.getAttribute("typeface") : null; };
+      // drawingml бывает Transitional и Strict — ищем по локальному имени
+      const face = (n) => { const f = tx.getElementsByTagNameNS("*", n)[0]; const l = f && Array.from(f.children).find(c => c.localName === "latin"); return l ? l.getAttribute("typeface") : null; };
       S.theme = { minor: face("minorFont"), major: face("majorFont") };
     }
     S.chain = (id) => { const out = []; let g = 0; while (id && S.map[id] && g++ < 12) { out.push(S.map[id]); id = S.map[id].basedOn; } return out; };
@@ -2551,12 +3134,14 @@ const AUTOFIX = (() => {
     for (const s of S.chain(pStyleOf(S, p))) { v = get(s.pPr); if (v !== undefined) return v; }
     return get(S.pDef);
   }
-  function rProp(S, r, p, get) {
-    const rPr = kid(r, "rPr"); let v = get(rPr); if (v !== undefined) return v;
+  // Свойство знаков: свои rPr → стиль знака → стиль абзаца → умолчания документа
+  function charProp(S, rPr, p, get) {
+    let v = get(rPr); if (v !== undefined) return v;
     for (const s of S.chain(wa(kid(rPr, "rStyle"), "val"))) { v = get(s.rPr); if (v !== undefined) return v; }
     for (const s of S.chain(pStyleOf(S, p))) { v = get(s.rPr); if (v !== undefined) return v; }
     return get(S.rDef);
   }
+  const rProp = (S, r, p, get) => charProp(S, kid(r, "rPr"), p, get);
   // Шрифт прогона: в Word тема важнее явного имени, а проверка читает явное имя — годным считаем, только если подходят оба.
   // Тема без файла темы — шрифт неизвестен (null).
   const gFont = (S) => (rPr) => {
@@ -2574,7 +3159,39 @@ const AUTOFIX = (() => {
   const gLine = (pPr) => { const s = kid(pPr, "spacing"); if (!s || !s.hasAttributeNS(W, "line")) return undefined; return { line: +wa(s, "line"), rule: wa(s, "lineRule") || "auto" }; };
   const gInd = (pPr) => { const i = kid(pPr, "ind"); if (!i) return undefined; if (i.hasAttributeNS(W, "firstLine")) return +wa(i, "firstLine"); if (i.hasAttributeNS(W, "hanging")) return -wa(i, "hanging"); return undefined; };
   const gNum = (pPr) => { const n = kid(pPr, "numPr"); if (!n) return undefined; const id = wa(kid(n, "numId"), "val"); return id == null ? undefined : id; };
+  const gPb = (pPr) => onOff(kid(pPr, "pageBreakBefore"));
   const normJc = (v) => v === "justify" ? "both" : v === "start" ? "left" : v === "end" ? "right" : (v || "left");
+
+  // ---- профиль: числа проверяются по реестру CODE_PARAMS; неверное значение не применяется ----
+  function normProfile(P, add) {
+    let bad = 0;
+    const reg = typeof CODE_PARAMS !== "undefined" && CODE_PARAMS ? CODE_PARAMS : {};
+    const unset = (v) => v === null || v === undefined || v === "";
+    const num = (v, key) => {
+      if (unset(v)) return null;
+      // число или строка из одного числа («1,5», «14»); «1,25 см», «12–14» — не число
+      const n = typeof v === "number" ? v : typeof v === "string" && /^\s*\d+(?:[.,]\d+)?\s*$/.test(v) ? +v.trim().replace(",", ".") : NaN;
+      const d = reg[key];
+      if (!Number.isFinite(n) || (d && typeof d.min === "number" && n < d.min) || (d && typeof d.max === "number" && n > d.max)) { bad++; return null; }
+      return n;
+    };
+    const Q = Object.assign({}, P);
+    Q.size = num(P.size, "text.size_pt"); Q.sizeMin = num(P.sizeMin, "text.size_pt"); Q.sizeMax = num(P.sizeMax, "text.size_pt");
+    Q.line = num(P.line, "text.line_spacing"); Q.indent = num(P.indent, "text.indent_cm");
+    const m = P.margins && typeof P.margins === "object" ? P.margins : null;
+    if (m) {
+      const mm = { left: num(m.left, "page.margin_left_mm"), right: num(m.right, "page.margin_right_mm"), top: num(m.top, "page.margin_top_mm"), bottom: num(m.bottom, "page.margin_bottom_mm") };
+      Q.margins = Object.values(mm).every(v => v !== null) ? mm : null;
+    } else Q.margins = null;
+    if (unset(P.font)) Q.font = null;
+    else if (typeof P.font === "string" && P.font.trim().length > 1 && P.font.length < 60) Q.font = P.font.trim();
+    else { Q.font = null; bad++; }
+    Q.fontAlt = Array.isArray(P.fontAlt) ? P.fontAlt.filter(f => typeof f === "string" && f.trim()) : [];
+    if (unset(P.align)) Q.align = null;
+    else { const al = normJc(String(P.align)); if (al === "both" || al === "left") Q.align = al; else { Q.align = null; bad++; } }
+    add("Пропущено: неверные значения в профиле", bad);
+    return Q;
+  }
 
   // ---- что можно удалять ----
   function blankRun(r) {
@@ -2583,7 +3200,7 @@ const AUTOFIX = (() => {
       const n = c.localName;
       if (n === "rPr" || n === "lastRenderedPageBreak" || n === "tab") continue;
       if (n === "t" && !c.textContent.trim()) continue;
-      return false; // w:br, w:sym, w:object, w:drawing, w:fldChar, сноски и всё прочее — содержимое
+      return false; // w:br, w:sym, w:object, w:drawing, w:fldChar, сноски, примечания и всё прочее — содержимое
     }
     return true;
   }
@@ -2594,7 +3211,7 @@ const AUTOFIX = (() => {
       const n = c.localName;
       if (n === "pPr" || n === "bookmarkStart" || n === "bookmarkEnd" || n === "proofErr") continue;
       if (n === "r" && blankRun(c)) continue;
-      return false; // гиперссылки, поля, правки, вложенные элементы управления
+      return false; // гиперссылки, поля, правки, примечания, вложенные элементы управления
     }
     return true;
   }
@@ -2610,6 +3227,23 @@ const AUTOFIX = (() => {
     const num = pProp(S, p, gNum);
     if (num && num !== "0") return false; // пустой пункт списка виден как маркер
     return true;
+  }
+  // Перед абзацем стоит настоящий разрыв: «с новой страницы», разрыв страницы или раздела (пустые строки пропускаем).
+  // Если не понять (начало документа или блока) — считаем, что разрыв есть, и ничего не добавляем.
+  function hardBreakBefore(S, el) {
+    if (pProp(S, el, gPb)) return true;
+    for (const r of own(el, "r")) {
+      if (kids(r, "br").some(b => wa(b, "type") === "page")) return true;
+      if (kids(r, "t").some(t => t.textContent.trim())) break;
+    }
+    for (let x = el.previousElementSibling; ; x = x.previousElementSibling) {
+      if (!x) return true;
+      if (isW(x, "bookmarkStart") || isW(x, "bookmarkEnd") || isW(x, "proofErr")) continue;
+      if (!isW(x, "p")) return false;
+      if (kid(kid(x, "pPr"), "sectPr")) return true;
+      if (Array.from(x.getElementsByTagNameNS(W, "br")).some(b => wa(b, "type") === "page")) return true;
+      if (!looksEmpty(x)) return false;
+    }
   }
 
   // ---- оформление абзаца ----
@@ -2634,21 +3268,57 @@ const AUTOFIX = (() => {
     setWa(sp, "line", tw); setWa(sp, "lineRule", "auto");
     return true;
   }
+  const isList = (S, p) => { const n = pProp(S, p, gNum); return !!n && n !== "0"; };
   // По центру и без абзацного отступа (иначе заголовок смещён вправо)
   function center(S, p) {
     let ch = setAlign(S, p, "center");
-    const n = pProp(S, p, gNum);
-    if (!(n && n !== "0")) ch = setIndent(S, p, 0) || ch;
+    if (!isList(S, p)) ch = setIndent(S, p, 0) || ch;
+    return ch;
+  }
+  // Слева и без абзацного отступа (название таблицы)
+  function leftNoIndent(S, p) {
+    let ch = setAlign(S, p, "left");
+    if (!isList(S, p)) ch = setIndent(S, p, 0) || ch;
     return ch;
   }
   function setPageBreakBefore(p) {
     const pb = child(firstChild(p, "pPr"), "pageBreakBefore", ORDER.pPr);
     pb.removeAttributeNS(W, "val");
   }
-  // Точка в конце заголовка (многоточие не трогаем)
+  // Красная строка, набранная табуляцией или пробелами: убрать их в начале абзаца (отступ задаёт w:firstLine).
+  // Идём по прогонам до первого видимого знака; формула, поле, рисунок, удалённый текст — стоп.
+  const LEAD_WRAP = new Set(["r", "hyperlink", "ins", "smartTag", "customXml", "sdt", "sdtContent", "dir", "bdo"]);
+  const LEAD_SKIP = new Set(["pPr", "rPr", "sdtPr", "sdtEndPr", "bookmarkStart", "bookmarkEnd", "proofErr", "lastRenderedPageBreak",
+    "commentRangeStart", "commentRangeEnd", "permStart", "permEnd"]);
+  function stripLeading(p) {
+    let changed = false, done = false;
+    const walk = (el) => {
+      for (const c of Array.from(el.children)) {
+        if (done) return;
+        if (c.namespaceURI !== W) { done = true; return; }
+        const n = c.localName;
+        if (LEAD_SKIP.has(n)) continue;
+        if (LEAD_WRAP.has(n)) { walk(c); continue; }
+        if (n === "tab" && isW(el, "r")) { el.removeChild(c); changed = true; continue; }
+        if (n === "t") {
+          const s = c.textContent, s2 = s.replace(/^[ \u00A0\t]+/, "");
+          if (s2 !== s) { setText(c, s2); changed = true; }
+          if (s2) { done = true; return; }
+          continue;
+        }
+        done = true; return;
+      }
+    };
+    walk(p);
+    return changed;
+  }
+  // Точка в конце заголовка или подписи (многоточие и точку сокращения не трогаем)
+  // список сокращений общий с проверкой «Точка в конце заголовка» (TEXT_ABBR_END в 30-checks.js)
+  const ABBR_END = TEXT_ABBR_END;
   function stripEndDot(p) {
-    const ts = own(p, "t"), m = textOf(ts).match(/(^|[^.])\.\s*$/);
+    const ts = own(p, "t"), text = textOf(ts), m = text.match(/(^|[^.])\.\s*$/);
     if (!m) return false;
+    if (ABBR_END.test(text.replace(/\s+$/, ""))) return false;
     const at = m.index + m[1].length;
     replaceRange(ts, at, at + 1, "");
     return true;
@@ -2682,47 +3352,108 @@ const AUTOFIX = (() => {
     }
     return n > 0;
   }
-  // Подпись рисунка: «Рис. 1. Название» → «Рисунок 1 – Название»; «Сурет 1. Атауы» → «Сурет 1 – Атауы»;
-  // «1-сурет. Атауы» → «1-сурет – Атауы». Слова «Сурет» и «сурет» не заменяются.
+  // Подпись рисунка: «Рис. 1. Название» → «Рисунок 1 – Название»; «Сурет 1. Атауы» → «Сурет 1 – Атауы»; «1-сурет. Атауы» → «1-сурет – Атауы».
+  // Название таблицы: «Табл. 1. Название» → «Таблица 1 – Название»; «Кесте 1. Атауы» → «Кесте 1 – Атауы»; «1-кесте. Атауы» → «1-кесте – Атауы».
+  // Казахские слова не заменяются. Несколько знаков подряд («Рис. 1. – Схема», «Рисунок 1 – – Схема») сводятся к одному тире.
   const CAP_NUM = "((?:[А-ЯA-ZӘҒҚҢӨҰҮҺІ]\\.)?\\d+(?:\\.\\d+)*)";
-  const CAP_RU = new RegExp(`^(\\s*)(Рисунок|Рис\\.|Сурет)\\s*${CAP_NUM}(?:\\s*([.:–—-])(?!\\d))?\\s*`, "i");
-  const CAP_KZ = /^(\s*)(\d+(?:\.\d+)*)\s*[-–]?\s*(сурет)(?:\s*([.:–—-]))?\s*/i;
-  const CAP_OK = [/^(Рисунок|Сурет)\s+([А-ЯA-ZӘҒҚҢӨҰҮҺІ]\.)?\d+(\.\d+)*\s+[–—-]\s+\S/, /^\d+(\.\d+)*\s*-\s*сурет\s+[–—-]\s+\S/i];
-  // null — это не подпись, а обычное предложение; подпись другого вида («Figure 1. …») только центрируется и теряет точку
-  function fixCaptionText(p) {
-    const ts = own(p, "t"), text = textOf(ts);
-    const ru = text.match(CAP_RU), kz = ru ? null : text.match(CAP_KZ), m = ru || kz;
-    if (!m) return stripEndDot(p);
+  const SEP = "(?:\\s*([.:–—-])(?!\\d)(?:\\s*[.:–—-](?!\\d))*)?";
+  const CAP = {
+    fig: { ru: new RegExp(`^(\\s*)(Рисунок|Рис\\.|Сурет)\\s*${CAP_NUM}${SEP}\\s*`, "i"), kz: new RegExp(`^(\\s*)(\\d+(?:\\.\\d+)*)\\s*[-–]?\\s*(сурет)${SEP}\\s*`, "i"),
+      word: "Рисунок", kzWord: /^сурет$/i, kzName: "Сурет" },
+    tbl: { ru: new RegExp(`^(\\s*)(Таблица|Табл\\.|Кесте)\\s*${CAP_NUM}${SEP}\\s*`, "i"), kz: new RegExp(`^(\\s*)(\\d+(?:\\.\\d+)*)\\s*[-–]?\\s*(кесте)${SEP}\\s*`, "i"),
+      word: "Таблица", kzWord: /^кесте$/i, kzName: "Кесте" },
+  };
+  const CAP_OK = {
+    fig: [/^(Рисунок|Сурет)\s+([А-ЯA-ZӘҒҚҢӨҰҮҺІ]\.)?\d+(\.\d+)*\s+[–—-]\s+[^\s.:–—-]/, /^\d+(\.\d+)*\s*-\s*сурет\s+[–—-]\s+[^\s.:–—-]/i],
+    tbl: [/^(Таблица|Кесте)\s+([А-ЯA-ZӘҒҚҢӨҰҮҺІ]\.)?\d+(\.\d+)*\s+[–—-]\s+[^\s.:–—-]/, /^\d+(\.\d+)*\s*-\s*кесте\s+[–—-]\s+[^\s.:–—-]/i],
+  };
+  const LOWER_START = /^[a-zа-яёәғқңөұүһі]/;
+  // Конец предложения внутри абзаца: слово из строчных букв, точка, новое слово с прописной («…выручки. Из рисунка…»).
+  // Инициалы и сокращения («М. Портера», «сост. А. Ивановым») предложением не считаются.
+  const SENTENCE_GAP = /[a-zа-яёәғқңөұүһі]{2}[.!?…]\s+[A-ZА-ЯЁӘҒҚҢӨҰҮҺІ][a-zа-яёәғқңөұүһі]/;
+  // Результат: null — это не подпись, а обычный текст (не трогаем совсем); { other: true } — подпись другой формы (не трогаем);
+  // { text, words } — что изменилось. near: подпись стоит сразу под рисунком или уже по центру.
+  function fixCaptionText(p, kind, near) {
+    const ts = own(p, "t"), text = textOf(ts), C = CAP[kind];
+    const ru = text.match(C.ru), kz = ru ? null : text.match(C.kz), m = ru || kz;
+    if (!m) return kind === "fig" ? { text: stripEndDot(p), words: false } : null;
     const rest = text.slice(m[0].length);
-    // «Рисунок 2 показывает…» — обычное предложение, а не подпись
-    if (!m[4] && /^[a-zа-яёәғқңөұүһі]/.test(rest)) return null;
-    let ch = false;
-    if (!CAP_OK.some(re => re.test(text.trim())) && rest.trim()) {
-      const head = ru ? `${/^сурет$/i.test(m[2]) ? "Сурет" : "Рисунок"} ${m[3]} – ` : `${m[2]}-${m[3]} – `;
+    // «Рисунок 2 показывает…», «Рисунок 3 – это схема…» в тексте — обычное предложение, а не подпись
+    if (LOWER_START.test(rest) && (!m[4] || !near)) return null;
+    // длинный абзац из нескольких предложений — текст, где упомянут рисунок или таблица
+    if (text.trim().length > 250 || SENTENCE_GAP.test(rest.replace(/\s+$/, ""))) return null;
+    // «Таблица 1» без названия: название, скорее всего, следующей строкой — это другая форма, не трогаем
+    if (kind === "tbl" && !rest.trim()) return { other: true };
+    let words = false;
+    if (!CAP_OK[kind].some(re => re.test(text.trim())) && rest.trim()) {
+      const head = ru ? `${C.kzWord.test(m[2]) ? C.kzName : C.word} ${m[3]} – ` : `${m[2]}-${m[3]} – `;
       replaceRange(ts, m[1].length, m[0].length, head);
-      ch = true;
+      words = true;
     }
-    return stripEndDot(p) || ch;
+    const dot = stripEndDot(p);
+    return { text: words || dot, words };
   }
-  // Абзац с выключенной формулой или объектом: только формула и, может быть, её номер «(1)»
-  function displayFormula(p) {
-    if (has(p, M_NS, "oMathPara")) return true;
-    if (!has(p, M_NS, "oMath") && !own(p, "object").length) return false;
-    return !textOf(own(p, "t")).replace(/\([^()]{0,12}\)/g, "").replace(/[\s.,;:–—-]/g, "");
+  // В абзаце есть формула или объект (OLE): такой абзац не выравниваем и не сдвигаем
+  const hasFormula = (p) => mathIn(p, "oMath").length > 0 || mathIn(p, "oMathPara").length > 0 || own(p, "object").length > 0;
+
+  // ---- листинги кода: стиль «код», «листинг» или больше половины текста моноширинным шрифтом ----
+  function codePara(S, p) {
+    if (S.chain(pStyleOf(S, p)).some(s => CODE_STYLE.some(re => re.test(s.name) || re.test(s.id)))) return true;
+    let all = 0, mono = 0;
+    for (const r of own(p, "r")) {
+      const n = textOf(kids(r, "t")).replace(/\s/g, "").length; if (!n) continue;
+      all += n;
+      const f = rProp(S, r, p, gFont(S));
+      if (f && f.some(x => x && MONO_FONT.test(normName(x)))) mono += n;
+    }
+    return all > 0 && mono * 2 > all;
   }
-  const isList = (S, p) => { const n = pProp(S, p, gNum); return !!n && n !== "0"; };
+  // ---- похоже на заголовок без стиля: короткий, по центру, полужирный, прописными, «ГЛАВА 1…» ----
+  const LETTERS = /[^A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі]/g;
+  function headingLike(S, p, el) {
+    const t = String(p.vis || textOf(own(el, "t"))).trim();
+    if (!t || t.length > 160) return false;
+    if (/^(ГЛАВА|РАЗДЕЛ|БӨЛІМ|БОЛІМ|ТАРАУ|CHAPTER)(\s|$)/.test(t) || /^[\dIVXІ]+\s*[-–.]?\s*(ТАРАУ|БӨЛІМ)/.test(t)) return true;
+    if (/^(Глава|Раздел|Бөлім|Тарау|Chapter)\s+[\dIVXІ]+/.test(t) && !/[.!?;,:]$/.test(t)) return true;
+    if (/[,;:]$/.test(t)) return false;
+    const letters = String(p.shown || t).replace(LETTERS, "");
+    if (letters.length >= 4 && letters === letters.toUpperCase()) return true;
+    if (/[.!?…]$/.test(t)) return false;
+    return normJc(pProp(S, el, gJc)) === "center" || !!p.allBold;
+  }
 
   // ---- шрифт и кегль ----
   const SKIP_RUN = new Set(["sym", "footnoteReference", "endnoteReference", "footnoteRef", "endnoteRef", "annotationRef", "commentReference",
     "object", "drawing", "pict", "fldChar", "instrText", "ptab", "separator", "continuationSeparator"]);
-  function fixRuns(S, p, P) {
-    const alt = [P.font, ...(Array.isArray(P.fontAlt) ? P.fontAlt : [])].filter(Boolean);
-    const lo = P.sizeMin ?? null, hi = P.sizeMax ?? null, ranged = lo != null || hi != null;
-    const sizeOk = (v) => v != null && (ranged ? (lo == null || v >= lo) && (hi == null || v <= hi) : v === +P.size);
-    let target = +P.size;
-    if (ranged && !sizeOk(target)) target = lo != null && !(target >= lo) ? lo : hi;
-    const half = Math.round(target * 2);
-    let changed = false, hidden = false;
+  function sizePlan(Q) {
+    const lo = Q.sizeMin ?? null, hi = Q.sizeMax ?? null, ranged = lo != null || hi != null;
+    const ok = (v) => v != null && (ranged ? (lo == null || v >= lo) && (hi == null || v <= hi) : Q.size != null && v === Q.size);
+    let target = Q.size;
+    if (ranged && !ok(target)) target = lo != null && !(target >= lo) ? lo : hi;
+    return { ok, half: target != null && Number.isFinite(target) ? Math.round(target * 2) : null };
+  }
+  function fontPlan(Q) {
+    const alt = [Q.font, ...Q.fontAlt].filter(Boolean).map(normName);
+    return (fonts) => !!Q.font && (!fonts || fonts.some(f => !f || !alt.includes(normName(f))));
+  }
+  function applyFont(rPr, Q, fontBad, sizeBad, half) {
+    if (fontBad) {
+      const f = child(rPr, "rFonts", ORDER.rPr);
+      for (const a of ["asciiTheme", "hAnsiTheme", "cstheme"]) f.removeAttributeNS(W, a);
+      for (const a of ["ascii", "hAnsi", "cs"]) setWa(f, a, Q.font);
+    }
+    if (sizeBad) { setWa(child(rPr, "sz", ORDER.rPr), "val", half); setWa(child(rPr, "szCs", ORDER.rPr), "val", half); }
+  }
+  const symbolRun = (S, r, p, fonts) => {
+    const f = kid(kid(r, "rPr"), "rFonts");
+    if (f && Array.from(f.attributes).some(a => SYMBOL_FONT.test(normName(a.value)))) return true;
+    if (fonts && fonts.some(x => x && SYMBOL_FONT.test(normName(x)))) return true;
+    return /[\uF000-\uF0FF]/.test(textOf(kids(r, "t"))); // знаки символьного шрифта хранятся в области U+F0xx
+  };
+  // withSize: false — менять только шрифт (абзац похож на заголовок)
+  function fixRuns(S, p, Q, withSize = true) {
+    const sz = sizePlan(Q), badFont = fontPlan(Q);
+    let changed = false, hidden = false, symbol = false, text = false;
     for (const r of own(p, "r")) {
       if (!kid(r, "t")) continue;
       if (Array.from(r.children).some(c => c.namespaceURI === W && SKIP_RUN.has(c.localName))) continue;
@@ -2737,18 +3468,35 @@ const AUTOFIX = (() => {
         continue;
       }
       const fonts = rProp(S, r, p, gFont(S));
-      const fontBad = !!P.font && (!fonts || fonts.some(f => !alt.includes(f))), sizeBad = !!half && !sizeOk(size);
+      if (symbolRun(S, r, p, fonts)) { if (badFont(fonts) || (withSize && sz.half != null && !sz.ok(size))) symbol = true; continue; }
+      text = true;
+      const fontBad = badFont(fonts), sizeBad = withSize && sz.half != null && !sz.ok(size);
       if (!fontBad && !sizeBad) continue;
-      const rPr = firstChild(r, "rPr");
-      if (fontBad) {
-        const f = child(rPr, "rFonts", ORDER.rPr);
-        for (const a of ["asciiTheme", "hAnsiTheme", "cstheme"]) f.removeAttributeNS(W, a);
-        for (const a of ["ascii", "hAnsi", "cs"]) setWa(f, a, P.font);
-      }
-      if (sizeBad) { setWa(child(rPr, "sz", ORDER.rPr), "val", half); setWa(child(rPr, "szCs", ORDER.rPr), "val", half); }
+      applyFont(firstChild(r, "rPr"), Q, fontBad, sizeBad, sz.half);
       changed = true;
     }
-    return { changed, hidden };
+    // Знак конца абзаца: по нему Word оформляет номер пункта списка и высоту последней строки
+    if (text) {
+      const mrPr = kid(kid(p, "pPr"), "rPr");
+      if (!charProp(S, mrPr, p, gVanish)) {
+        const fontBad = badFont(charProp(S, mrPr, p, gFont(S))), sizeBad = withSize && sz.half != null && !sz.ok(charProp(S, mrPr, p, gSz));
+        if (fontBad || sizeBad) { applyFont(child(firstChild(p, "pPr"), "rPr", ORDER.pPr), Q, fontBad, sizeBad, sz.half); changed = true; }
+      }
+    }
+    return { changed, hidden, symbol };
+  }
+  // Заголовок структурного элемента прописными: w:caps у прогонов (буквы в тексте не меняются)
+  function setCaps(S, p) {
+    let ch = false;
+    for (const r of own(p, "r")) {
+      const t = textOf(kids(r, "t"));
+      if (!t.trim() || t === t.toUpperCase() || rProp(S, r, p, gVanish)) continue;
+      const rPr = firstChild(r, "rPr"), sc = kid(rPr, "smallCaps");
+      if (sc) rPr.removeChild(sc);
+      child(rPr, "caps", ORDER.rPr).removeAttributeNS(W, "val");
+      ch = true;
+    }
+    return ch;
   }
 
   // Разделы документа по порядку; прежние свойства из записанных правок (w:sectPrChange) не в счёт
@@ -2775,9 +3523,10 @@ const AUTOFIX = (() => {
   }
 
   // ---- поля страницы во всех разделах ----
-  function fixMargins(doc, P, add) {
+  function fixMargins(doc, Q, add) {
+    if (!Q.margins) return;
     const target = {};
-    for (const k of ["top", "right", "bottom", "left"]) { const v = +(P.margins || {})[k]; if (!isFinite(v) || v <= 0) return; target[k] = Math.round(v * TW_PER_MM); }
+    for (const k of ["top", "right", "bottom", "left"]) target[k] = Math.round(Q.margins[k] * TW_PER_MM);
     for (const s of sections(doc)) {
       const sz = kid(s, "pgSz"), w = +wa(sz, "w") || 0, h = +wa(sz, "h") || 0;
       // У альбомного листа поля надо поворачивать, а сторона подшивки зависит от того, как лист вклеят.
@@ -2794,74 +3543,141 @@ const AUTOFIX = (() => {
       add("Поля страницы");
     }
   }
+  // ---- таблицы шире текста (после смены полей): только сообщаем ----
+  function wideTables(doc, add) {
+    const body = doc.getElementsByTagNameNS(W, "body")[0]; if (!body) return;
+    const groups = []; let cur = [];
+    const walk = (el) => {
+      for (const c of el.children) {
+        if (isW(c, "tbl")) cur.push(c);
+        else if (isW(c, "p")) { const s = kid(kid(c, "pPr"), "sectPr"); if (s) { groups.push([cur, s]); cur = []; } }
+        else if (isW(c, "sdt")) walk(kid(c, "sdtContent") || c);
+      }
+    };
+    walk(body); groups.push([cur, kid(body, "sectPr")]);
+    let n = 0;
+    for (const [tbls, s] of groups) {
+      if (!s || !tbls.length) continue;
+      const m = kid(s, "pgMar"), text = +wa(kid(s, "pgSz"), "w") - (+wa(m, "left") || 0) - (+wa(m, "right") || 0) - (+wa(m, "gutter") || 0);
+      if (!Number.isFinite(text) || text <= 0) continue;
+      for (const t of tbls) {
+        const tw = kid(kid(t, "tblPr"), "tblW");
+        let w = tw && wa(tw, "type") === "dxa" ? +wa(tw, "w") : NaN;
+        if (!(w > 0)) w = kids(kid(t, "tblGrid"), "gridCol").reduce((a, g) => a + (+wa(g, "w") || 0), 0);
+        if (Number.isFinite(w) && w - text > TW_PER_MM) n++; // больше чем на 1 мм
+      }
+    }
+    add("Проверьте вручную: таблица шире текста", n);
+  }
 
-  // ---- всё вместе: правит D.docXml на месте, возвращает журнал ----
-  function fixDocument(D, A, P) {
-    const doc = D.docXml, root = doc.documentElement;
-    W = root.namespaceURI || W; WP = root.prefix || "w"; STRICT = /purl\.oclc\.org/.test(W);
+  // ---- всё вместе: правит D.docXml на месте, возвращает журнал; ctx.rewritten — абзацы, где поменялись слова ----
+  function fixDocument(D, A, P, ctx = {}) {
+    const doc = D.docXml;
+    useNs(doc);
+    const rewritten = ctx.rewritten || (ctx.rewritten = new Set());
     const S = readStyles(D);
     const counts = new Map(), add = (t, n = 1) => { if (n) counts.set(t, (counts.get(t) || 0) + n); };
-    fixMargins(doc, P, add);
+    const Q = normProfile(P || {}, add);
+    fixMargins(doc, Q, add);
     fixTitlePage(D, A, add);
-    const lineTw = +P.line > 0 ? Math.round(P.line * 240) : null;
-    const indTw = P.indent != null && isFinite(+P.indent) ? Math.round(P.indent * TW_PER_CM) : null;
+    wideTables(doc, add);
+    const lineTw = Q.line ? Math.round(Q.line * 240) : null;
+    const indTw = Q.indent != null ? Math.round(Q.indent * TW_PER_CM) : null;
     // Серии подряд идущих пустых строк. Оставляем одну: первую, а если в серии есть пустой абзац,
     // который удалять нельзя (разрыв раздела или страницы, пустой пункт списка), — его, а все удаляемые убираем.
-    const drop = []; let run = [];
-    const endRun = () => {
-      if (run.length > 1) {
-        const pinned = run.some(x => !x.del);
-        run.forEach((x, i) => { if (x.del && (pinned || i > 0)) x.drop = true; });
-        run.forEach((x, i) => {
-          if (!x.drop) return;
-          // закладки — в ближайший оставленный абзац серии: в конец предыдущего или в начало следующего
-          let to = null, atStart = false;
-          for (let j = i - 1; j >= 0 && !to; j--) if (!run[j].drop) to = run[j].el;
-          if (!to) { for (let j = i + 1; j < run.length && !to; j++) if (!run[j].drop) to = run[j].el; atStart = true; }
-          if (to) drop.push({ el: x.el, to, atStart });
-        });
+    // Не трогаем пустые строки внутри листинга кода и перед заголовком, который ими «перелистнут» на новую страницу.
+    const drop = [], pbNeed = new Set(); let run = [], prevCode = false, prevPic = false;
+    const topHeading = (q) => !!q && ((q.struct && q.struct !== "toc") || (q.isSection && !/^\s*\d+\.\d/.test(q.vis || "")));
+    const endRun = (next, nextCode) => {
+      if (run.length > 1 && run.some(x => x.del)) {
+        let keep = prevCode || nextCode;
+        if (!keep && topHeading(next) && next.newPage && !hardBreakBefore(S, next.el)) {
+          if (Q.newPage) pbNeed.add(next);
+          else { keep = true; add("Пропущено: пустые строки перед заголовком"); }
+        }
+        if (!keep) {
+          const pinned = run.some(x => !x.del);
+          run.forEach((x, i) => { if (x.del && (pinned || i > 0)) x.drop = true; });
+          run.forEach((x, i) => {
+            if (!x.drop) return;
+            // закладки — в ближайший оставленный абзац серии: в конец предыдущего или в начало следующего
+            let to = null, atStart = false;
+            for (let j = i - 1; j >= 0 && !to; j--) if (!run[j].drop) to = run[j].el;
+            if (!to) { for (let j = i + 1; j < run.length && !to; j++) if (!run[j].drop) to = run[j].el; atStart = true; }
+            if (to) drop.push({ el: x.el, to, atStart });
+          });
+        }
       }
       run = [];
     };
     for (const p of A.paras) {
-      if (!p || p.table || p.inTable || !p.el || !p.el.parentNode) { endRun(); continue; }
+      if (!p || p.table || p.inTable || !p.el || !p.el.parentNode) { if (!p || !p.inTable) { endRun(null, false); prevCode = prevPic = false; } continue; }
       const el = p.el, inBody = BODY_REGIONS.has(p.region);
       if (inBody && p.nonText !== true && looksEmpty(el)) { run.push({ el, del: blankPara(S, el) }); continue; }
-      endRun();
+      const code = inBody && !p.struct && !p.isSection && !p.caption && codePara(S, el);
+      endRun(p, code);
+      // предыдущий непустой абзац — рисунок без текста (для подписи)
+      const afterPic = prevPic;
+      prevCode = code; prevPic = (!!p.drawing || has(el, "drawing") || has(el, "pict")) && !String(p.vis || "").trim();
       if (p.struct) {
-        if (P.structCentered && center(S, el)) add("Заголовки по центру без отступа");
+        if (Q.structCentered && center(S, el)) add("Заголовки по центру без отступа");
+        if (Q.structCentered && stripLeading(el)) add("Пробелы и табуляция в начале абзаца");
+        if (Q.structUpper && p.struct !== "app" && setCaps(S, el)) add("Заголовки прописными");
         if (stripEndDot(el)) add("Точка в конце заголовка");
-        if (P.newPage && !p.newPage && p.struct !== "toc") { setPageBreakBefore(el); add("Разделы с новой страницы"); }
+        if (Q.newPage && p.struct !== "toc" && (!p.newPage || pbNeed.has(p))) { setPageBreakBefore(el); add("Разделы с новой страницы"); }
         continue;
       }
-      if (p.isSection) { if (stripEndDot(el)) add("Точка в конце заголовка"); continue; }
-      if (p.caption === "fig") {
-        const t = fixCaptionText(el);
-        if (t !== null && (center(S, el) || t)) add("Подписи рисунков");
+      if (p.isSection) {
+        if (stripEndDot(el)) add("Точка в конце заголовка");
+        if (pbNeed.has(p)) { setPageBreakBefore(el); add("Разделы с новой страницы"); }
         continue;
       }
-      if (p.caption) continue; // название таблицы: слева без отступа — не трогаем
-      if (!inBody || p.drawing || has(el, W, "drawing") || has(el, W, "pict")) continue;
+      if (p.caption === "fig" || p.caption === "tbl") {
+        const near = p.caption === "fig" ? afterPic || normJc(pProp(S, el, gJc)) === "center" : true;
+        const t = fixCaptionText(el, p.caption, near);
+        if (t === null) { add("Пропущено: похоже на текст, а не на подпись"); continue; }
+        if (t.other) { add("Пропущено: название таблицы не в одну строку"); continue; }
+        if (t.words) rewritten.add(el);
+        const lead = stripLeading(el);
+        const lay = p.caption === "fig" ? center(S, el) : leftNoIndent(S, el);
+        if (t.text || lay || lead) add(p.caption === "fig" ? "Подписи рисунков" : "Названия таблиц");
+        continue;
+      }
+      if (p.caption) continue; // продолжение таблицы, название таблицы второй строкой — не трогаем
+      if (!inBody || p.drawing || has(el, "drawing") || has(el, "pict")) continue;
       if (!textOf(own(el, "t")).trim()) continue; // формула без номера, символ, разрыв — оформлять нечего
-      const refs = p.region === "refs", formula = displayFormula(el);
+      if (code) { add("Пропущено: листинги кода"); continue; }
+      const refs = p.region === "refs", formula = hasFormula(el);
+      const alOk = () => !Q.align || normJc(pProp(S, el, gJc)) === normJc(Q.align);
+      const inOk = () => indTw == null || Math.abs((pProp(S, el, gInd) ?? 0) - indTw) <= 6;
+      if (!refs && !formula && headingLike(S, p, el)) {
+        // похоже на заголовок без стиля: выравнивание, отступ, интервал и кегль не меняем, только шрифт
+        if (!alOk() || !inOk() || (lineTw && !lineOk(S, el, lineTw))) add("Пропущено: похоже на заголовок");
+        const fr = fixRuns(S, el, Q, false);
+        if (fr.changed) add("Шрифт и кегль");
+        if (fr.symbol) add("Пропущено: символьные шрифты");
+        if (collapseSpaces(el)) add("Двойные пробелы");
+        continue;
+      }
       if (lineTw && setLine(S, el, lineTw)) add("Межстрочный интервал");
       if (!refs && formula) {
-        const alOk = !P.align || normJc(pProp(S, el, gJc)) === normJc(P.align);
-        const inOk = indTw == null || Math.abs((pProp(S, el, gInd) ?? 0) - indTw) <= 6;
-        if (!alOk || !inOk) add("Пропущено: абзацы с формулами");
+        if (!alOk() || !inOk()) add("Пропущено: абзацы с формулами");
       } else if (!refs) {
-        if (P.align && setAlign(S, el, P.align)) add("Выравнивание");
+        if (Q.align && setAlign(S, el, Q.align)) add("Выравнивание");
         if (indTw != null) {
-          if (!isList(S, el)) { if (setIndent(S, el, indTw)) add("Абзацный отступ"); }
-          else if (Math.abs((pProp(S, el, gInd) ?? 0) - indTw) > 6) add("Пропущено: отступ в списках");
+          if (!isList(S, el)) {
+            if (setIndent(S, el, indTw)) add("Абзацный отступ");
+            if (indTw > 0 && !kid(kid(el, "pPr"), "tabs") && stripLeading(el)) add("Пробелы и табуляция в начале абзаца");
+          } else if (!inOk()) add("Пропущено: отступ в списках");
         }
       }
-      const fr = fixRuns(S, el, P);
+      const fr = fixRuns(S, el, Q);
       if (fr.changed) add("Шрифт и кегль");
       if (fr.hidden) add("Пропущено: скрытый текст");
+      if (fr.symbol) add("Пропущено: символьные шрифты");
       if (collapseSpaces(el)) add("Двойные пробелы");
     }
-    endRun();
+    endRun(null, false);
     let removed = 0;
     for (const { el, to, atStart } of drop) {
       const parent = el.parentNode; if (!parent) continue;
@@ -2878,6 +3694,42 @@ const AUTOFIX = (() => {
     return titles.map(title => ({ title, count: counts.get(title) }));
   }
 
+  // ---- сверка до и после: что не должно пропасть и не должно измениться ----
+  const KEEP = [["oMath", "формулы", true], ["oMathPara", "формулы", true], ["object", "объекты"], ["drawing", "рисунки"], ["pict", "рисунки"],
+    ["tbl", "таблицы"], ["footnoteReference", "сноски"], ["endnoteReference", "сноски"], ["commentReference", "примечания"],
+    ["commentRangeStart", "примечания"], ["bookmarkStart", "закладки"], ["bookmarkEnd", "закладки"], ["fldChar", "поля"], ["fldSimple", "поля"],
+    ["sym", "символы"], ["hyperlink", "ссылки"], ["sectPr", "разделы"], ["br", "разрывы"]];
+  // Текст абзаца для сравнения: без пробелов и знаков препинания (их исправление меняет)
+  const rawText = (p) => Array.from(p.getElementsByTagNameNS(W, "t")).map(t => t.textContent).join("");
+  const normText = (p) => rawText(p).replace(/[\s.,;:!?…–—-]/g, "");
+  function census(doc) {
+    useNs(doc);
+    const out = {};
+    for (const [n, , math] of KEEP) out[n] = math ? mathIn(doc, n).length : doc.getElementsByTagNameNS(W, n).length;
+    return out;
+  }
+  function snapshot(doc) {
+    useNs(doc);
+    return { counts: census(doc), texts: Array.from(doc.getElementsByTagNameNS(W, "p")).map(p => [p, normText(p), rawText(p).replace(/\s+/g, " ").trim()]) };
+  }
+  // Причина остановки (строка) или null, если всё сошлось
+  function verify(before, doc, xml, ctx = {}) {
+    useNs(doc);
+    const now = census(doc), lost = new Map();
+    for (const [n, label] of KEEP) if (now[n] !== before.counts[n]) lost.set(label, (lost.get(label) || 0) + Math.abs(before.counts[n] - now[n]));
+    if (lost.size) return `изменилось число элементов (${[...lost].map(([k, v]) => `${k}: ${v}`).join(", ")}).`;
+    const root = doc.documentElement, rw = ctx.rewritten || new Set();
+    const snip = (s) => s.length > 40 ? s.slice(0, 40) + "…" : s;
+    for (const [p, t, shown] of before.texts) {
+      const alive = root.contains(p);
+      if (!alive && t) return `пропал абзац «${snip(shown)}».`;
+      if (alive && !rw.has(p) && normText(p) !== t) return `изменился текст абзаца «${snip(shown)}».`;
+    }
+    const bad = xml.match(/="-?(NaN|undefined|Infinity)"/);
+    if (bad) return `в файле получилось неверное значение ${bad[0].slice(1)}. Проверьте числа в профиле.`;
+    return null;
+  }
+
   function serialize(doc) {
     const xml = new XMLSerializer().serializeToString(doc);
     return /^<\?xml/.test(xml) ? xml : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + xml;
@@ -2886,37 +3738,62 @@ const AUTOFIX = (() => {
   let busy = false;
   async function run() {
     if (!state.downloads || !state.buf || busy) return null;
-    busy = true; state.fixLog = null;
+    // Что исправляем, под каким именем и куда сохраняем — запоминаем сразу: дальше идут await,
+    // и состояние страницы за это время может смениться
+    const buf = state.buf, docName = state.name, downloads = state.downloads;
+    busy = true; state.fixLog = null; state.fixError = null;
+    // Файл не сохранён — причина остаётся на экране (state.fixError), а не только во всплывающем сообщении
+    const fail = (msg) => { state.fixError = msg; toast(msg); if (typeof uiAnnounce === "function") uiAnnounce(msg); return null; };
     try {
-      const P = profile(); const D = await readDocx(state.buf.slice(0)); const A = analyze(D);
-      const log = fixDocument(D, A, P);
-      D.zip.file("word/document.xml", serialize(D.docXml));
+      const P = profile(); const D = await readDocx(buf.slice(0)); const A = analyze(D);
+      const before = api.snapshot(D.docXml), ctx = { rewritten: new Set() };
+      const log = api.fixDocument(D, A, P, ctx);
+      const xml = serialize(D.docXml);
+      const problem = api.verify(before, D.docXml, xml, ctx);
+      if (problem) return fail("Исправление остановлено, файл не сохранён: " + problem);
+      D.zip.file("word/document.xml", xml);
       const blob = await D.zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 }, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-      const name = state.name.replace(/\.docx$/i, "") + " — исправлено.docx";
-      try { await state.downloads.save({ filename: name, data: blob }); }
-      catch (e) { if (e && e.code !== "declined") toast("Не удалось сохранить файл"); return null; }
+      const name = docName.replace(/\.docx$/i, "") + " — исправлено.docx";
+      try { await downloads.save({ filename: name, data: blob }); }
+      catch (e) { return e && e.code === "declined" ? null : fail("Не удалось сохранить исправленный файл."); }
       state.fixLog = log; // журнал — только когда файл действительно сохранён
       toast("Исправленный файл сохранён");
       return log;
     } catch (e) {
-      toast("Не удалось исправить файл: " + ((e && e.message) || e));
-      return null;
+      return fail("Не удалось исправить файл: " + ((e && e.message) || e));
     } finally { busy = false; }
   }
-  return { run, fixDocument, serialize, ORDER };
+  // fixDocument, snapshot и verify вызываются через api — тесты могут подменить их и проверить защиту
+  const api = { run, fixDocument, snapshot, verify, census, serialize, ORDER };
+  return api;
 })();
 async function fixDocx() { return AUTOFIX.run(); }
 
 // ===== 90-init.js =====
 // ---------- Запуск ----------
-// Если cdnjs недоступен, пробуем свою копию JSZip на сервере Qalyp.
-function uiLoadScript(src) {
-  return new Promise((res) => { const s = document.createElement("script"); s.src = src; s.onload = () => res(true); s.onerror = () => res(false); document.head.appendChild(s); });
+// JSZip. Сначала страница берёт свою копию с сервера Qalyp — тег /vendor/jszip.min.js в index.html
+// (версия из node_modules; у неё другой хеш, чем у 3.10.1 на cdnjs). Если копии нет — страница открыта
+// как файл или с другого хостинга — грузим jszip 3.10.1 с cdnjs с проверкой хеша (integrity):
+// подменённый на CDN файл браузер не выполнит. Хеш сверен с файлом jszip 3.10.1 из npm (97 630 байт).
+const UI_JSZIP_CDN = {
+  src: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+  integrity: "sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==",
+};
+function uiLoadScript(src, integrity = "") {
+  return new Promise((res) => {
+    const s = document.createElement("script");
+    if (integrity) { s.setAttribute("integrity", integrity); s.setAttribute("crossorigin", "anonymous"); s.setAttribute("referrerpolicy", "no-referrer"); }
+    s.onload = () => res(true); s.onerror = () => res(false);
+    s.src = src;
+    document.head.appendChild(s);
+  });
 }
 async function uiStart() {
-  if (typeof JSZip === "undefined" && location.protocol !== "file:") await uiLoadScript("/vendor/jszip.min.js");
+  if (typeof JSZip === "undefined") await uiLoadScript(UI_JSZIP_CDN.src, UI_JSZIP_CDN.integrity);
   if (typeof JSZip === "undefined") {
-    $("summary").innerHTML = `<div class="banner err" role="alert" style="grid-column:1/-1">Не загрузилась библиотека для чтения .docx (cdnjs.cloudflare.com недоступен). Проверьте интернет или сетевой фильтр и обновите страницу.</div>`;
+    $("report").classList.add("no-report");
+    $("summary").innerHTML = `<div class="banner err" role="alert" style="grid-column:1/-1">Не загрузилась библиотека для чтения .docx: ни с сервера Qalyp, ни с cdnjs.cloudflare.com. Дело не в вашем файле. Проверьте интернет или сетевой фильтр и обновите страницу.</div>`;
+    aiButtonsState();
     return;
   }
   process(sampleBuf(), UI_SAMPLE_NAME);

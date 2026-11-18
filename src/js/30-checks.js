@@ -6,6 +6,11 @@ const MAIN_REGIONS = ["intro", "body", "concl"];
 const inMain = (p) => MAIN_REGIONS.includes(p.region);
 // Видимый текст абзаца (без скрытого), обрезанный по краям
 const pv = (p) => (p && typeof p.vis === "string" ? p.vis : visibleText(p).trim());
+// Точка сокращения в конце строки («2020–2024 гг.», «млн тг.», «и т. д.») — не «точка в конце заголовка»:
+// автоисправление (70-fix.js) её оставляет и берёт этот же список, поэтому и проверка её не считает.
+const TEXT_ABBR_END = /(^|[\s(«"„.])(г|гг|вв|тыс|млн|млрд|трлн|руб|тг|долл|коп|др|пр|проч|им|ед|шт|экз|чел|изд|ок|прибл|мин|сек|ч|стр|обл|ул|просп|кв|св|англ|рус|каз|лат|напр|ср|рис|табл|гл|разд|вып|прим|ст|пп|ж|жж|etc|al|т\.\s?д|т\.\s?п|т\.\s?е|т\.\s?б|т\.\s?с\.\s?с)\.$/i;
+// Лишняя точка в конце: одна точка (не многоточие) и не точка сокращения
+const endDot = (t) => { t = String(t || "").replace(/\s+$/, ""); return /(^|[^.])\.$/.test(t) && !TEXT_ABBR_END.test(t); };
 
 // ----- Список источников -----
 function parseRefs(paras) {
@@ -182,11 +187,18 @@ function runChecks(A, P) {
     add("Основной текст", "err", "Не удалось найти основной текст работы", "Программа не нашла абзацы введения, основной части, заключения и списка источников, поэтому шрифт, кегль, интервал, отступ и выравнивание не проверены. Проверьте, что «ВВЕДЕНИЕ», «ЗАКЛЮЧЕНИЕ» и заголовки глав стоят отдельными строками.", [], "", { key: "text.none" });
   }
   const ex = (arr) => arr.slice(0, 3).map(([p, v]) => ({ sec: p.section + " · " + v, text: snip(pv(p)) }));
-  if (fontBad.length) add("Основной текст", "err", `Другой шрифт в ${fontBad.length} абз.`, `Нужен ${fontNeed}. Обычно так выглядит текст, вставленный из интернета.`, ex(fontBad), "Выделить абзац → Ctrl+Space. Исправляется автоматически.", { key: "text.font", share: share(fontBad) });
-  if (sizeBad.length) add("Основной текст", "err", sizeRange(P) ? `Кегль вне ${sizeNeed(P)} пт в ${sizeBad.length} абз.` : `Кегль не ${P.size} пт в ${sizeBad.length} абз.`, "", ex(sizeBad), `Установить ${sizeNeed(P)} пт. Исправляется автоматически.`, { key: "text.size", share: share(sizeBad) });
-  if (lineBad.length) add("Основной текст", "err", `Интервал не ${fmt(P.line, 1)} в ${lineBad.length} абз.`, "", ex(lineBad), `Абзац → Междустрочный: ${lineName(P.line)}. Исправляется автоматически.`, { key: "text.line", share: share(lineBad) });
-  if (indBad.length) add("Основной текст", "err", `Абзацный отступ не ${fmt(P.indent, 2)} см в ${indBad.length} абз.`, "Отступ нужно задавать в настройках абзаца, а не пробелами или табуляцией.", ex(indBad), "Исправляется автоматически.", { key: "text.indent", share: share(indBad) });
-  if (alBad.length) add("Основной текст", "err", `Выравнивание не ${ALIGN_RU[P.align]} в ${alBad.length} абз.`, "", ex(alBad), `${P.align === "left" ? "Ctrl+L" : "Ctrl+J"}. Исправляется автоматически.`, { key: "text.align", share: share(alBad) });
+  // Чего автоисправление (70-fix.js) в основном тексте не трогает — по каждому виду находки
+  const FIX_AUTO = {
+    font: "Исправляется автоматически, кроме листингов кода и символьных шрифтов (Symbol, Wingdings).",
+    size: "Исправляется автоматически, кроме листингов кода и строк, похожих на заголовки.",
+    layout: "Исправляется автоматически, кроме абзацев с формулами, листингов кода и строк, похожих на заголовки.",
+    spaces: "Исправляется автоматически, кроме листингов кода.",
+  };
+  if (fontBad.length) add("Основной текст", "err", `Другой шрифт в ${fontBad.length} абз.`, `Нужен ${fontNeed}. Обычно так выглядит текст, вставленный из интернета.`, ex(fontBad), "Выделить абзац → Ctrl+Space. " + FIX_AUTO.font, { key: "text.font", share: share(fontBad) });
+  if (sizeBad.length) add("Основной текст", "err", sizeRange(P) ? `Кегль вне ${sizeNeed(P)} пт в ${sizeBad.length} абз.` : `Кегль не ${P.size} пт в ${sizeBad.length} абз.`, "", ex(sizeBad), `Установить ${sizeNeed(P)} пт. ${FIX_AUTO.size}`, { key: "text.size", share: share(sizeBad) });
+  if (lineBad.length) add("Основной текст", "err", `Интервал не ${fmt(P.line, 1)} в ${lineBad.length} абз.`, "", ex(lineBad), `Абзац → Междустрочный: ${lineName(P.line)}. ${FIX_AUTO.size}`, { key: "text.line", share: share(lineBad) });
+  if (indBad.length) add("Основной текст", "err", `Абзацный отступ не ${fmt(P.indent, 2)} см в ${indBad.length} абз.`, "Отступ нужно задавать в настройках абзаца, а не пробелами или табуляцией.", ex(indBad), FIX_AUTO.layout, { key: "text.indent", share: share(indBad) });
+  if (alBad.length) add("Основной текст", "err", `Выравнивание не ${ALIGN_RU[P.align]} в ${alBad.length} абз.`, "", ex(alBad), `${P.align === "left" ? "Ctrl+L" : "Ctrl+J"}. ${FIX_AUTO.layout}`, { key: "text.align", share: share(alBad) });
   // Пробелы по обе стороны формулы, объекта, символа или сноски в строке — не двойной пробел (автоисправление их тоже не трогает)
   const spacedText = (p) => { let s = "";
     const walk = (n) => { for (const c of n.children) { const nm = c.nodeName;
@@ -195,7 +207,7 @@ function runChecks(A, P) {
       else if (!/^(w:pPr|w:rPr|w:delText|w:instrText|w:del|w:moveFrom|w:txbxContent|mc:Fallback)$/.test(nm)) walk(c); } };
     walk(p.el); return s; };
   const dbl = bodyP.filter(p => / {2,}/.test(pv(p)) && (!p.nonText || / {2,}/.test(spacedText(p))));
-  if (dbl.length) add("Основной текст", "warn", `Двойные пробелы в ${dbl.length} абз.`, "", dbl.slice(0, 3).map(W), "Найти «  » → заменить на « ». Исправляется автоматически.", { key: "text.spaces", share: share(dbl) });
+  if (dbl.length) add("Основной текст", "warn", `Двойные пробелы в ${dbl.length} абз.`, "", dbl.slice(0, 3).map(W), "Найти «  » → заменить на « ». " + FIX_AUTO.spaces, { key: "text.spaces", share: share(dbl) });
   const emptyRuns = []; let cur = [];
   // Пустой абзац с разрывом страницы или раздела, рамкой или маркером списка — не «пустая строка»: он что-то значит, и автоисправление его оставляет
   const keepEmpty = (p) => { const ppr = kid(p.el, "w:pPr"), pb = kid(ppr, "w:pageBreakBefore");
@@ -222,23 +234,24 @@ function runChecks(A, P) {
     // у приложения прописными пишется слово «ПРИЛОЖЕНИЕ», а «(обязательное)» и название — как обычно
     const kw = p.struct === "app" ? shown.match(/приложени[ея]|қосымша\S*|косымша\S*/i) : null;
     const upperOk = kw ? kw[0] === kw[0].toUpperCase() : shown === shown.toUpperCase();
-    if (P.structUpper && !upperOk) add("Структура и заголовки", "err", `«${snip(t, 40)}» не прописными буквами`, "", [W(p)], "Набрать заголовок прописными буквами.", { key: "struct.upper" });
-    if (/\.$/.test(t)) add("Структура и заголовки", "err", "Точка в конце заголовка", "", [W(p)], "Исправляется автоматически.", { key: "struct.dot" });
+    // автоисправление ставит прописные (w:caps) у всех структурных элементов, кроме приложения: там прописными — только слово «ПРИЛОЖЕНИЕ»
+    if (P.structUpper && !upperOk) add("Структура и заголовки", "err", `«${snip(t, 40)}» не прописными буквами`, "", [W(p)], p.struct === "app" ? "Набрать слово «ПРИЛОЖЕНИЕ» прописными буквами." : "Набрать заголовок прописными буквами. Исправляется автоматически.", { key: "struct.upper" });
+    if (endDot(t)) add("Структура и заголовки", "err", "Точка в конце заголовка", "", [W(p)], "Исправляется автоматически.", { key: "struct.dot" });
     if (P.newPage && !p.newPage && p.struct !== "toc") add("Структура и заголовки", "warn", `«${snip(t, 40)}» не с новой страницы`, "Каждый структурный элемент начинают с новой страницы.", [W(p)], "Вставка → Разрыв страницы перед заголовком.", { key: "struct.newpage" });
   }
-  const secDots = A.paras.filter(p => p.isSection && /\.$/.test(pv(p)));
+  const secDots = A.paras.filter(p => p.isSection && endDot(pv(p)));
   if (secDots.length) add("Структура и заголовки", "err", `Точка в конце заголовка раздела (${secDots.length})`, "В заголовках разделов и подразделов точку в конце не ставят.", secDots.slice(0, 3).map(W), "Исправляется автоматически.", { key: "sec.dot", n: secDots.length });
 
   // ----- Рисунки и таблицы (только во введении, основной части и заключении) -----
   const capP = A.paras.filter(p => p.caption && !p.inTable && inMain(p));
   for (const p of capP.filter(p => p.caption === "fig")) {
     const t = pv(p);
-    if (!CAP_FORM.fig.some(re => re.test(t)) || /\.$/.test(t)) add("Рисунки и таблицы", "err", "Подпись рисунка не по форме", "Нужно: «Рисунок 1 – Название» (или «1-сурет – Атауы»), без сокращения «Рис.» и без точки в конце.", [W(p)], "Исправляется автоматически.", { key: "fig.form" });
+    if (!CAP_FORM.fig.some(re => re.test(t)) || endDot(t)) add("Рисунки и таблицы", "err", "Подпись рисунка не по форме", "Нужно: «Рисунок 1 – Название» (или «1-сурет – Атауы»), без сокращения «Рис.» и без точки в конце.", [W(p)], "Исправляется автоматически.", { key: "fig.form" });
     if (p.align !== "center") add("Рисунки и таблицы", "err", "Подпись рисунка не по центру", "", [W(p)], "Исправляется автоматически.", { key: "fig.center" });
   }
   for (const p of capP.filter(p => p.caption === "tbl")) {
     const t = pv(p);
-    if (!CAP_FORM.tbl.some(re => re.test(t)) || /\.$/.test(t)) add("Рисунки и таблицы", "err", "Название таблицы не по форме", "Нужно: «Таблица 1 – Название» (или «1-кесте – Атауы») над таблицей, слева, одной строкой, без точки.", [W(p)], "", { key: "tbl.form" });
+    if (!CAP_FORM.tbl.some(re => re.test(t)) || endDot(t)) add("Рисунки и таблицы", "err", "Название таблицы не по форме", "Нужно: «Таблица 1 – Название» (или «1-кесте – Атауы») над таблицей, слева, одной строкой, без точки.", [W(p)], "Если название стоит одной строкой — исправляется автоматически.", { key: "tbl.form" });
   }
   const look = (i, step, max) => { const res = []; for (let j = i + step; j >= 0 && j < A.paras.length && res.length < max; j += step) { const q = A.paras[j]; if (q.inTable) continue; if (q.table) { res.push(q); break; } if (pv(q) || q.drawing || q.nonText) res.push(q); } return res; };
   A.paras.forEach((p, i) => {

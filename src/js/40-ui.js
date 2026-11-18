@@ -8,15 +8,32 @@ const state = {
   downloads: null,   // если задан ({ save({ filename, data }) }) — сохраняем через него (тесты); иначе обычная ссылка на Blob
   ai: null,          // ИИ и сверка источников по текущей работе (50-ai.js)
   fixLog: null,      // что изменило автоисправление: [{ title, count }] (пишет fixDocx)
+  fixError: null,    // почему исправленный файл не сохранён (пишет fixDocx); строка или null
   decisions: {},     // решения нормоконтролёра: ключ находки → { verdict, comment }
   reviewer: false,   // режим нормоконтролёра
   health: null,      // ответ GET /api/health (50-ai.js)
   method: null,      // экран подтверждения методички (60-method.js)
   docSeq: 0,         // номер загрузки работы: поздние ответы по старой работе отбрасываются
+  busy: null,        // "parse" — идёт разбор работы, "fix" — исправление; кнопки работы на это время выключены
 };
 const profile = () => state.profiles.find((p) => p.id === state.pid) || state.profiles[0];
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 5000); }
+// Строка итога для скринридера (единственная область aria-live в отчёте)
 function uiAnnounce(msg) { const s = $("srStatus"); if (s) s.textContent = msg; }
+// Меняем текст, только если он другой: области role=status/alert не перечитываются впустую
+function uiSetText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+// Дать браузеру нарисовать «Проверяем…» до тяжёлой работы (во вкладке в фоне — не дольше 60 мс)
+function uiNextPaint() {
+  return new Promise((res) => {
+    let done = false; const go = () => { if (!done) { done = true; setTimeout(res, 0); } };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(go);
+    setTimeout(go, 60);
+  });
+}
+// Пометка о цене у платных в будущем функций. Оплаты в продукте нет, ничего не блокируется.
+const UI_PRICE_NOTE = "Полный отчёт — 990 ₸ для студента; для студентов вуза с лицензией — бесплатно";
+const UI_PRICE_TEXT = UI_PRICE_NOTE + ". Пока идёт пилот, всё открыто.";
+const uiPriceHtml = () => `<p class="note price">${esc(UI_PRICE_TEXT)}</p>`;
 
 // ---------- мелкие помощники ----------
 const UI_PAGENUM = { "bottom-center": "внизу по центру", "bottom-right": "внизу справа", "top-center": "вверху по центру", "top-right": "вверху справа" };
@@ -138,13 +155,14 @@ function renderSummary() {
   $("summary").innerHTML = `
     <div><div class="score">${esc(R.score)}<small>/100</small></div><div class="note">балл автопроверки оформления</div>${uiPenaltiesHtml(R)}</div>
     <div><h2>${esc(state.name)}</h2>
-      <div class="counts"><span class="chip err">${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}</span><span class="chip warn">${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</span><span class="chip ok">≈${pages} стр. текста</span>${aiChips}</div>
+      <div class="counts"><span class="chip err">${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}</span><span class="chip warn">${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</span><span class="chip muted">≈${pages} стр. текста</span>${aiChips}</div>
       <p class="note" style="margin-top:8px">Профиль: ${esc(P.name)}${P.source === "method" ? ` <span class="ai-badge">Вывод ИИ</span>` : ""}</p>
       <div class="actions" style="margin-top:12px">
-        <button class="btn primary" id="fixBtn" type="button">Исправить оформление (.docx)</button>
+        <button class="btn primary" id="fixBtn" type="button"${state.busy ? " disabled" : ""}>Исправить оформление (.docx)</button>
         <button class="btn" id="protocolBtn" type="button"${state.reviewer ? "" : " hidden"}>Протокол</button>
       </div>
-      <div class="note" id="fixNote" style="margin-top:6px">Программа меняет оформление по выбранному профилю: поля, шрифт, интервалы, отступы, выравнивание. Ссылки и источники правит автор.</div>
+      <div class="note" id="fixNote" style="margin-top:6px">${uiFixNoteHtml()}</div>
+      ${uiPriceHtml()}
       <div id="fixLog">${uiFixLogHtml()}</div></div>
     <div class="stamp ${good ? "good" : "bad"}">Предварительная проверка<small>Решение принимает нормоконтролёр</small></div>`;
   $("fixBtn").onclick = runFix;
@@ -166,10 +184,23 @@ function uiPenaltiesHtml(R) {
   return `<details class="note" style="margin-top:6px;max-width:240px"><summary>Из чего сложился балл</summary><ul style="margin:4px 0 0;padding-left:18px">${ps.map((x) => `<li>−${esc(uiNum(+x.penalty, 1))} — ${esc(uiStr(x.title, 200))}${x.n > 1 ? ` (${esc(x.n)})` : ""}</li>`).join("")}</ul>
     <p style="margin:4px 0 0">Балл — ориентир для автора, а не оценка работы.</p></details>`;
 }
+const uiBusyHtml = (t) => `<span class="thinking"><span class="dot" aria-hidden="true"></span>${esc(t)}</span>`;
+function uiFixNoteHtml() {
+  return state.busy === "fix" ? uiBusyHtml("Исправляем файл…")
+    : "Программа меняет оформление по выбранному профилю: поля, шрифт, интервалы, отступы, выравнивание, подписи рисунков и названия таблиц, прописные буквы в заголовках структурных элементов. Ссылки и источники правит автор.";
+}
+// В журнале fixDocx пропущенное начинается с «Пропущено:» или «Проверьте вручную:» — это не исправлено
+const UI_FIX_SKIPPED = /^(Пропущено|Проверьте вручную):/;
 function uiFixLogHtml() {
-  const log = state.fixLog; if (!Array.isArray(log)) return "";
+  // файл не сохранён — причина видна, пока не нажали «Исправить» ещё раз или не открыли другую работу
+  const err = typeof state.fixError === "string" && state.fixError ? `<div class="banner err" style="margin-top:8px">${esc(uiStr(state.fixError, 400))}</div>` : "";
+  const log = state.fixLog; if (!Array.isArray(log)) return err;
   if (!log.length) return `<p class="note" style="margin-top:8px">Автоисправлению нечего было менять.</p>`;
-  return `<div class="fixlog"><h3>Что исправлено</h3><ul>${log.map((x) => `<li>${esc(uiStr(x && x.title, 200))}${x && Number.isFinite(+x.count) ? ` — ${esc(+x.count)}` : ""}</li>`).join("")}</ul>
+  const item = (x) => `<li>${esc(uiStr(x && x.title, 200))}${x && Number.isFinite(+x.count) ? ` — ${esc(+x.count)}` : ""}</li>`;
+  const skipped = (x) => UI_FIX_SKIPPED.test(String((x && x.title) || ""));
+  const done = log.filter((x) => !skipped(x)), left = log.filter(skipped);
+  return `<div class="fixlog">${done.length ? `<h3>Что исправлено</h3><ul>${done.map(item).join("")}</ul>` : `<p class="note">Программа ничего не изменила в оформлении.</p>`}
+    ${left.length ? `<h3>Не исправлено — посмотрите сами</h3><ul>${left.map(item).join("")}</ul>` : ""}
     <p class="note">Исправленный файл сохранён. Откройте его здесь ещё раз, чтобы проверить результат.</p></div>`;
 }
 function renderBanners() {
@@ -214,6 +245,7 @@ function renderManual() {
 function render() {
   const { A, R } = state; if (!A || !R) return;
   const P = profile();
+  $("report").classList.remove("no-report");
   renderSummary();
   renderBanners();
   $("sheet").innerHTML = sheetSvg(A, P);
@@ -241,16 +273,24 @@ async function uiSaveFile({ filename, data }) {
   return uiSaveBlob({ filename, data });
 }
 async function runFix() {
-  if (!state.buf) return;
-  const btn = $("fixBtn"), my = state.docSeq;
-  if (btn) btn.disabled = true;
+  if (!state.buf || state.busy) return;
+  const my = state.docSeq;
+  state.busy = "fix"; uiBusyState();
+  const note = $("fixNote"); if (note) note.innerHTML = uiFixNoteHtml();
+  uiAnnounce("Исправляем файл…");
+  await uiNextPaint();
   const own = !state.downloads;   // fixDocx сохраняет через state.downloads.save — даём ему свою функцию на время вызова
   if (own) state.downloads = { save: uiSaveBlob };
-  state.fixLog = null;
+  state.fixLog = null; state.fixError = null;
   try { await fixDocx(); }
-  catch (e) { toast("Не удалось исправить файл: " + ((e && e.message) || e)); }
-  finally { if (own) state.downloads = null; }
-  if (my === state.docSeq) { renderSummary(); if (Array.isArray(state.fixLog)) uiAnnounce("Файл исправлен: " + state.fixLog.map((x) => x.title).join(", ")); }
+  catch (e) { state.fixError = "Не удалось исправить файл: " + ((e && e.message) || e); toast(state.fixError); }
+  finally { if (own) state.downloads = null; if (state.busy === "fix") state.busy = null; }
+  // пока исправляли, открыли другую работу: журнал правок прежней работы к ней не относится
+  if (my !== state.docSeq) { state.fixLog = null; state.fixError = null; uiBusyState(); return; }
+  renderSummary(); uiBusyState();
+  // причину отказа fixDocx уже сказал скринридеру — не затираем её общим «не исправлен»
+  const done = Array.isArray(state.fixLog) ? state.fixLog.filter((x) => !UI_FIX_SKIPPED.test(String((x && x.title) || ""))).map((x) => x.title) : null;
+  uiAnnounce(done ? (done.length ? "Файл исправлен: " + done.join(", ") : "Файл сохранён, оформление менять не пришлось.") : state.fixError || "Файл не исправлен.");
 }
 
 // ---------- протокол для печати ----------
@@ -279,27 +319,27 @@ function renderProtocol() {
   const aiItems = typeof aiProtocolItems === "function" ? aiProtocolItems() : [];
   const aiPart = !state.ai ? `<p>ИИ-проверка не запускалась.</p>`
     : !aiItems.length ? `<p>ИИ-проверка запущена; замечаний ИИ к введению, заключению и источникам нет.</p>`
-    : `<table><thead><tr><th>Что</th><th>Вывод ИИ</th><th>Проверено человеком</th><th>Комментарий</th></tr></thead><tbody>${aiItems.map((it) => {
+    : `<div class="tablewrap"><table><thead><tr><th>Что</th><th>Вывод ИИ</th><th>Проверено человеком</th><th>Комментарий</th></tr></thead><tbody>${aiItems.map((it) => {
         const d = state.decisions[it.key]; const checked = d && d.verdict ? `да — ${UI_VERDICT_TEXT[d.verdict]}` : "нет";
-        return `<tr><td>${esc(it.what)}</td><td>${esc(it.verdict)}</td><td>${esc(checked)}</td><td>${esc(uiComment(it.key))}</td></tr>`; }).join("")}</tbody></table>`;
+        return `<tr><td>${esc(it.what)}</td><td>${esc(it.verdict)}</td><td>${esc(checked)}</td><td>${esc(uiComment(it.key))}</td></tr>`; }).join("")}</tbody></table></div>`;
   const manual = uiManualRules(P);
-  const manualPart = manual.length ? `<h2>Проверяет человек: правила методички</h2><table><thead><tr><th>Пункт</th><th>Правило</th><th>Итог</th><th>Комментарий</th></tr></thead><tbody>${manual.map((r) =>
-    `<tr><td>${esc(r.clause || "—")}</td><td>${esc(r.rule)}</td><td>${esc(uiVerdictText("manual|" + r.id))}</td><td>${esc(uiComment("manual|" + r.id))}</td></tr>`).join("")}</tbody></table>` : "";
+  const manualPart = manual.length ? `<h2>Проверяет человек: правила методички</h2><div class="tablewrap"><table><thead><tr><th>Пункт</th><th>Правило</th><th>Итог</th><th>Комментарий</th></tr></thead><tbody>${manual.map((r) =>
+    `<tr><td>${esc(r.clause || "—")}</td><td>${esc(r.rule)}</td><td>${esc(uiVerdictText("manual|" + r.id))}</td><td>${esc(uiComment("manual|" + r.id))}</td></tr>`).join("")}</tbody></table></div>` : "";
   $("protocolView").innerHTML = `
     <div class="actions no-print"><button class="btn primary" id="protoPrint" type="button">Сохранить протокол (PDF)</button><button class="btn" id="protoBack" type="button">Вернуться к отчёту</button>
       <span class="note">В окне печати выберите «Сохранить как PDF».</span></div>
     <article class="proto-doc">
       <h1 id="h-proto">Протокол предварительной проверки оформления</h1>
-      <table class="proto-meta"><tbody>
+      <div class="tablewrap"><table class="proto-meta"><tbody>
         <tr><th>Файл</th><td>${esc(state.name)}</td></tr>
         <tr><th>Дата</th><td>${esc(uiDate())}</td></tr>
         <tr><th>Профиль</th><td>${esc(P.name)}</td></tr>
         <tr><th>Источник профиля</th><td>${src}</td></tr>
         <tr><th>Автопроверка</th><td>${esc(R.score)}/100 · ${esc(R.errs)} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")} · ${esc(R.warns)} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}</td></tr>
-      </tbody></table>
+      </tbody></table></div>
       <p class="proto-stamp">Предварительная проверка. Решение принимает нормоконтролёр.</p>
       <h2>Нарушения оформления (измерила программа)</h2>
-      ${R.findings.length ? `<table><thead><tr><th>№</th><th>Нарушение</th><th>Где</th><th>Решение нормоконтролёра</th><th>Комментарий</th></tr></thead><tbody>${codeRows}</tbody></table>` : "<p>Программа нарушений не нашла.</p>"}
+      ${R.findings.length ? `<div class="tablewrap"><table><thead><tr><th>№</th><th>Нарушение</th><th>Где</th><th>Решение нормоконтролёра</th><th>Комментарий</th></tr></thead><tbody>${codeRows}</tbody></table></div>` : "<p>Программа нарушений не нашла.</p>"}
       ${uiIsObj(R.coverage) && uiArr(R.coverage.notChecked).length ? `<p class="note">Программа не проверяет: ${esc(uiArr(R.coverage.notChecked).join(", "))}.</p>` : ""}
       <h2>Выводы ИИ <span class="ai-badge">Вывод ИИ</span></h2>
       <p class="note">Сформированы ИИ и могут быть ошибочны. В столбце «Проверено человеком» — смотрел ли вывод нормоконтролёр.</p>
@@ -312,51 +352,133 @@ function renderProtocol() {
 }
 
 // ---------- загрузка работы ----------
+// Лимиты: файл .docx больше 30 МБ и текст документа (word/document.xml) больше 50 МБ после распаковки не разбираем —
+// иначе вкладка зависает или падает (ревью mvp_sec_ux, находка 10).
+const UI_MAX_FILE = 30 * 1024 * 1024;
+const UI_MAX_XML = 50 * 1024 * 1024;
+const UI_TEXT = {
+  type: "Нужен файл .docx. Файл .doc откройте в Word и сохраните как .docx.",
+  size: "Файл больше 30 МБ — программа такой не разбирает. Обычно размер дают рисунки: сожмите их в Word (вкладка «Формат рисунка» → «Сжать рисунки») и сохраните файл заново.",
+  xml: "Текст документа после распаковки больше 50 МБ — программа такой файл не разбирает, чтобы страница не зависла. Проверьте, тот ли это файл.",
+  disk: "Не удалось прочитать файл с диска.",
+  lib: "Не загрузилась библиотека для чтения .docx. Дело не в вашем файле: проверьте интернет и обновите страницу.",
+  broken: "Файл повреждён или это не .docx. Откройте его в Word и сохраните заново.",
+};
+const uiErr = (text) => Object.assign(new Error(text), { uiText: text });
+// Размер word/document.xml по оглавлению архива — без распаковки (null, если узнать нельзя)
+async function uiDocxXmlSize(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const f = zip.file("word/document.xml");
+  const n = f && f._data ? Number(f._data.uncompressedSize) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+// Постоянная строка ошибки под полем загрузки (role="alert"); пустая — не видна
+function uiFileError(text) { uiSetText($("fileError"), text || ""); }
+// Пока идёт разбор или исправление — кнопки работы выключены, отчёт помечен aria-busy
+function uiBusyState() {
+  const busy = !!state.busy, rep = $("report"), drop = $("drop");
+  if (busy) rep.setAttribute("aria-busy", "true"); else rep.removeAttribute("aria-busy");
+  rep.dataset.busy = state.busy || "";   // при разборе прежний отчёт бледнеет: он уже не про выбранный файл
+  if (busy) drop.setAttribute("aria-disabled", "true"); else drop.removeAttribute("aria-disabled");
+  $("loadSample").disabled = busy;
+  const fix = $("fixBtn"); if (fix) fix.disabled = busy;
+  if (typeof aiButtonsState === "function") aiButtonsState();
+}
+// Новый файл не прочитан: прежний отчёт убираем, чтобы он не выглядел отчётом по новому файлу
+function uiClearReport(text) {
+  if (!$("protocolView").hidden) closeProtocol();
+  Object.assign(state, { buf: null, name: "", D: null, A: null, R: null, ai: null, fixLog: null, fixError: null, decisions: {} });
+  $("report").classList.add("no-report");
+  $("summary").innerHTML = `<div class="banner err" style="grid-column:1/-1">${esc(text)}</div>`;
+  for (const id of ["docBanners", "sheet", "params", "findings", "aiOut"]) $(id).innerHTML = "";
+  $("manualBox").hidden = true; $("manualBox").innerHTML = "";
+  if (typeof aiButtonsState === "function") aiButtonsState();
+}
+// Возвращает true, если работа проверена и показана
 async function process(buf, name) {
+  // пока исправляем файл, другую работу не открываем: имя и содержимое исправленного файла не должны перепутаться
+  if (state.busy === "fix") { toast(UI_WAIT.fix); return false; }
   const my = ++state.docSeq;
   if (typeof aiCancel === "function") aiCancel("newdoc");
-  $("fileInfo").innerHTML = `<b>${esc(name)}</b><span>читаю…</span>`;
+  state.busy = "parse"; uiBusyState();
+  uiFileError("");
+  $("fileInfo").innerHTML = `<b>${esc(name)}</b>${uiBusyHtml("Проверяем…")}`;
+  uiAnnounce("Проверяем файл…");
   try {
+    await uiNextPaint();
+    if (my !== state.docSeq) return false;
+    const xml = await uiDocxXmlSize(buf);
+    if (xml !== null && xml > UI_MAX_XML) throw uiErr(UI_TEXT.xml);
+    if (my !== state.docSeq) return false;
     const D = await readDocx(buf.slice(0));
-    if (my !== state.docSeq) return;
+    if (my !== state.docSeq) return false;
     const A = analyze(D), R = runChecks(A, profile());
-    Object.assign(state, { buf, name, D, A, R, ai: null, fixLog: null, decisions: {} });
+    Object.assign(state, { buf, name, D, A, R, ai: null, fixLog: null, fixError: null, decisions: {} });
     $("aiOut").innerHTML = "";
     $("fileInfo").innerHTML = `<b>${esc(name)}</b><span>${esc((A.words || 0).toLocaleString("ru-RU"))} слов · ${esc(R.refs.length)} источн.</span>`;
-    render();
+    state.busy = null;
+    render(); uiBusyState();
     uiAnnounce(`Проверка завершена: ${R.errs} ${uiPlural(R.errs, "ошибка", "ошибки", "ошибок")}, ${R.warns} ${uiPlural(R.warns, "предупреждение", "предупреждения", "предупреждений")}.`);
+    return true;
   } catch (e) {
-    if (my !== state.docSeq) return;
+    if (my !== state.docSeq) return false;
     const msg = String((e && e.message) || e);
-    const text = (e instanceof ReferenceError && /JSZip/.test(msg)) ? "Не загрузилась библиотека для чтения .docx. Проверьте интернет и обновите страницу."
-      : /central directory|corrupted zip|is this a zip|end of data|word\/document/i.test(msg) ? "Файл повреждён или это не .docx. Откройте его в Word и сохраните заново."
+    const text = e && e.uiText ? e.uiText
+      : (e instanceof ReferenceError && /JSZip/.test(msg)) ? UI_TEXT.lib
+      : /central directory|corrupted zip|is this a zip|end of data|word\/document/i.test(msg) ? UI_TEXT.broken
       : "Не удалось прочитать файл: " + msg;
-    $("fileInfo").innerHTML = `<b>${esc(name)}</b><span class="bad">${esc(text)}${state.R ? ` Ниже — прежний отчёт: «${esc(state.name)}».` : ""}</span>`;
+    const full = `Файл «${name}» не проверен. ${text}`;
+    uiClearReport(full);
+    $("fileInfo").innerHTML = `<b>${esc(name)}</b><span class="bad">не проверен</span>`;
+    uiFileError(full);
     toast(text);
+    uiAnnounce("");
+    return false;
+  } finally {
+    if (my === state.docSeq && state.busy === "parse") { state.busy = null; uiBusyState(); }
   }
 }
 function recheck() { if (!state.A) return; state.R = runChecks(state.A, profile()); render(); }
 
-const UI_MAX_FILE = 50 * 1024 * 1024;
-// На телефоне отчёт ниже панели загрузки: после выбора файла показываем его
+// На телефоне отчёт ниже панели загрузки: после проверки прокручиваем к итогу
 function uiShowReport() {
-  if (typeof matchMedia === "function" && matchMedia("(max-width:860px)").matches && typeof $("report").scrollIntoView === "function") $("report").scrollIntoView({ block: "start" });
+  const s = $("summary");
+  if (typeof matchMedia !== "function" || !matchMedia("(max-width:860px)").matches || !s || typeof s.scrollIntoView !== "function") return;
+  s.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 }
+// Файл отклонён до чтения (не тот формат, слишком большой): прежний отчёт остаётся, это сказано прямо
+function uiFileRejected(name, text) {
+  uiFileError(`Файл «${name}» не проверен. ${text}${state.R ? ` Отчёт ниже — по файлу «${state.name}».` : ""}`);
+  toast(text);
+}
+const UI_WAIT = { parse: "Подождите: идёт проверка файла.", fix: "Подождите: идёт исправление файла." };
 const pick = (f) => {
   if (!f) return;
-  if (!/\.docx$/i.test(f.name)) return toast("Нужен файл .docx. Файл .doc откройте в Word и сохраните как .docx.");
-  if (f.size > UI_MAX_FILE) return toast("Файл больше 50 МБ. Сожмите рисунки в Word и сохраните заново.");
-  f.arrayBuffer().then((b) => process(b, f.name).then(uiShowReport), () => toast("Не удалось прочитать файл с диска."));
+  if (state.busy) return toast(UI_WAIT[state.busy] || UI_WAIT.parse);
+  if (!/\.docx$/i.test(f.name)) return uiFileRejected(f.name, UI_TEXT.type);
+  if (f.size > UI_MAX_FILE) return uiFileRejected(f.name, UI_TEXT.size);
+  f.arrayBuffer().then((b) => process(b, f.name).then((ok) => { if (ok) uiShowReport(); }), () => uiFileRejected(f.name, UI_TEXT.disk));
 };
-$("drop").onclick = () => $("docFile").click();
-$("drop").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("docFile").click(); } };
+$("drop").onclick = () => { if (!state.busy) $("docFile").click(); };
+$("drop").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!state.busy) $("docFile").click(); } };
 $("docFile").onchange = (e) => { pick(e.target.files[0]); e.target.value = ""; };
 ["dragover", "dragenter"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
 ["dragleave", "drop"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
-$("drop").addEventListener("drop", (e) => pick(e.dataTransfer && e.dataTransfer.files[0]));
+$("drop").addEventListener("drop", (e) => {
+  const fs = (e.dataTransfer && e.dataTransfer.files) || [];
+  // здесь проверяется одна работа; несколько сразу — в «Проверке группы» (45-batch.js), если она есть на странице
+  if (fs.length > 1 && !state.busy) toast(`Взят первый файл из ${fs.length}.${$("batchBox") ? " Несколько работ сразу — в разделе «Проверка группы»." : ""}`);
+  pick(fs[0]);
+});
 function sampleBuf() { const b = atob(SAMPLE_B64); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; }
 const UI_SAMPLE_NAME = "Пример: курсовая «Цифровизация МСП Акмолинской области».docx";
-$("loadSample").onclick = () => process(sampleBuf(), UI_SAMPLE_NAME).then(uiShowReport);
+$("loadSample").onclick = () => { if (!state.busy) process(sampleBuf(), UI_SAMPLE_NAME).then((ok) => { if (ok) uiShowReport(); }); };
+// «Тарифы» в шапке: только подсказка, функции не блокируются
+$("aiPrice").textContent = UI_PRICE_TEXT;
+$("pricingBtn").onclick = () => {
+  const p = $("pricingPanel"), open = p.hidden;
+  p.hidden = !open; $("pricingBtn").setAttribute("aria-expanded", String(open));
+};
 // Выбранный профиль помним между заходами (в localStorage только id профиля)
 function uiRememberPid() { try { localStorage.setItem("qalyp.pid", state.pid); } catch {} }
 $("profileSel").onchange = (e) => { state.pid = e.target.value; uiRememberPid(); renderProfiles(); recheck(); };

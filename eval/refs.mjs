@@ -44,11 +44,27 @@ const refs = items.map((r, i) => ({ n: i + 1, text: r.text }));
 console.log(`Записей: ${items.length} (настоящих ${items.filter((r) => r.label === "real").length}, выдуманных ${items.filter((r) => r.label === "fabricated").length})`);
 const t0 = Date.now();
 // Пачками по 40, как список литературы одной работы; срок на пачку — 120 с
-const db = [];
-for (let i = 0; i < refs.length; i += 40) {
-  const part = await lookupRefs(refs.slice(i, i + 40), { deadlineMs: 120000 });
-  db.push(...(Array.isArray(part) ? part : part.items));
-  console.log(`базы: ${Math.min(i + 40, refs.length)}/${refs.length}`);
+// --db-from файл.json — взять результаты сверки с базами из прошлого прогона (не тратить лимит OpenAlex)
+const dbFrom = opt("--db-from", "");
+let db = [];
+if (dbFrom) {
+  const prev = JSON.parse(fs.readFileSync(dbFrom, "utf8")).rows;
+  const byId = new Map(prev.map((r) => [r.id, r]));
+  db = items.map((r, i) => ({ n: i + 1, status: byId.get(r.id)?.db || "error", source: byId.get(r.id)?.dbSource || null }));
+  console.log(`базы: взяты из ${dbFrom}`);
+} else {
+  for (let i = 0; i < refs.length; i += 40) {
+    const part = await lookupRefs(refs.slice(i, i + 40), { deadlineMs: 120000 });
+    db.push(...(Array.isArray(part) ? part : part.items));
+    console.log(`базы: ${Math.min(i + 40, refs.length)}/${refs.length}`);
+  }
+  // Записи, которые не успели проверить, — ещё раз (обычно это ожидание лимита OpenAlex)
+  const errIdx = db.map((x, i) => (x.status === "error" ? i : -1)).filter((i) => i >= 0);
+  if (errIdx.length) {
+    console.log(`повтор для ${errIdx.length} записей с ошибкой`);
+    const again = await lookupRefs(errIdx.map((i) => refs[i]), { deadlineMs: 300000 });
+    (Array.isArray(again) ? again : again.items).forEach((x, k) => { db[errIdx[k]] = { ...x, n: refs[errIdx[k]].n }; });
+  }
 }
 const tDb = Date.now() - t0;
 let aiRes = null, tAi = 0;
@@ -68,16 +84,19 @@ const dbBy = new Map((Array.isArray(db) ? db : db.items).map((x) => [x.n, x]));
 const aiBy = new Map((aiRes?.items || []).map((x) => [x.n, x]));
 
 // Итоговый статус — как в интерфейсе (docs/ARCHITECTURE.md)
+// То же правило, что aiRefStatus в src/js/50-ai.js (docs/ARCHITECTURE.md, контракт 3)
+const FAKE_SIGNS = ["mismatch", "memory_conflict", "future", "not_source"];
 function finalStatus(d, a) {
-  const flags = a?.flags || [], rec = a?.recognized || "no";
-  const aiSignal = flags.length > 0 || rec === "yes_conflict";
-  switch (d?.status) {
-    case "confirmed": return "confirmed";
-    case "similar": return "similar";
-    case "not_found": return aiSignal ? "high_risk" : rec === "yes_matches" ? "not_found_recognized" : "not_found";
-    case "not_checkable": return aiSignal ? "check_manual" : "not_checkable";
-    default: return aiSignal ? "check_manual" : "error";
-  }
+  const flags = a?.flags || [];
+  const signal = flags.some((f) => FAKE_SIGNS.includes(f)) || a?.recognized === "yes_conflict";
+  const knows = a?.recognized === "yes_matches";
+  const st = d?.status;
+  if (st === "confirmed") return "confirmed";
+  if (st === "similar") return "similar";
+  if (st === "not_found") return !a ? "not_found" : (signal || !knows) ? "high_risk" : "not_found_recognized";
+  if (signal) return "high_risk";
+  if (a && (!knows || flags.length)) return "check_manual";
+  return st === "not_checkable" || a ? "not_checkable" : "error";
 }
 const rows = items.map((r, i) => {
   const d = dbBy.get(i + 1), a = aiBy.get(i + 1);

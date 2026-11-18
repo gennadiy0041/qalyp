@@ -161,14 +161,61 @@ export const RefsSchema = z.object({
   injection: z.array(z.object({ quote: z.string() })),
 });
 
-// ---------- вызов Claude ----------
+// ---------- тарифы и оценка стоимости ----------
 
-const pickUsage = (u = {}) => ({
-  input_tokens: u.input_tokens || 0,
-  output_tokens: u.output_tokens || 0,
-  cache_read_input_tokens: u.cache_read_input_tokens || 0,
-  cache_creation_input_tokens: u.cache_creation_input_tokens || 0,
+// Тарифы Anthropic API, доллары за 1 млн токенов: вход / выход (таблица моделей Claude API, ноябрь 2026).
+// Opus 5, Opus 4.8 и Sonnet 5 — сюда сервер переходит при отказе модели (fallbacks: "default").
+// У Haiku 5.5 запрос длиннее 100 000 входных токенов идёт по другому тарифу: $0,50 / $2,50.
+// Модели нет в таблице — стоимость не оценивается (null), токены всё равно считаются.
+export const PRICES = Object.freeze({
+  "claude-opus-5-5": { in: 4, out: 20 },
+  "claude-sonnet-5-5": { in: 2, out: 10 },
+  "claude-haiku-5-5": { in: 0.1, out: 0.5, longFrom: 100_000, longIn: 0.5, longOut: 2.5 },
+  "claude-opus-5": { in: 5, out: 25 },
+  "claude-opus-4-8": { in: 5, out: 25 },
+  "claude-sonnet-5": { in: 2, out: 10 },
 });
+
+// Оценка в долларах для одного обращения к модели. null — тариф модели неизвестен.
+// promptTokens — длина запроса для выбора тарифа (по умолчанию — входные токены).
+// Кеш промптов сервер не включает, поэтому его тарифы здесь не учитываются.
+export function costUsd(model, inputTokens, outputTokens, promptTokens = inputTokens) {
+  const p = typeof model === "string" && Object.hasOwn(PRICES, model) ? PRICES[model] : null;
+  if (!p) return null;
+  const long = !!p.longFrom && promptTokens > p.longFrom;
+  return (inputTokens * (long ? p.longIn : p.in) + outputTokens * (long ? p.longOut : p.out)) / 1e6;
+}
+
+// usage ответа → токены и оценка стоимости. При переходе на запасную модель API расписывает
+// каждую попытку в usage.iterations (у каждой своя модель и свой тариф) — тогда считаем по ним.
+// servedModel — модель ответа (msg.model), requestedModel — модель из запроса.
+export function readUsage(u, servedModel, requestedModel) {
+  u = u && typeof u === "object" ? u : {};
+  const its = Array.isArray(u.iterations) ? u.iterations.filter((e) => e && (e.type === "message" || e.type === "fallback_message")) : [];
+  const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
+  const part = (e, model) => ({
+    model,
+    input_tokens: n(e.input_tokens),
+    output_tokens: n(e.output_tokens),
+    prompt: n(e.input_tokens) + n(e.cache_read_input_tokens) + n(e.cache_creation_input_tokens),
+  });
+  const parts = its.length ? its.map((e) => part(e, e.model || requestedModel)) : [part(u, servedModel || requestedModel)];
+  let usd = 0;
+  for (const p of parts) {
+    const c = costUsd(p.model, p.input_tokens, p.output_tokens, p.prompt);
+    if (c === null) { usd = null; break; }
+    usd += c;
+  }
+  return {
+    input_tokens: parts.reduce((a, p) => a + p.input_tokens, 0),
+    output_tokens: parts.reduce((a, p) => a + p.output_tokens, 0),
+    cache_read_input_tokens: n(u.cache_read_input_tokens),
+    cache_creation_input_tokens: n(u.cache_creation_input_tokens),
+    usd,
+  };
+}
+
+// ---------- вызов Claude ----------
 
 // Все текстовые блоки ответа подряд → JSON → проверка схемой. undefined, если не получилось.
 function parseJoinedText(msg, schema) {
@@ -220,11 +267,11 @@ export async function callClaude({ kind, system, user, schema, maxTokens }) {
         if (parsed === undefined) {
           // в журнал — без текста ошибки разбора: в нём бывает кусок ответа модели с цитатами из работы
           throw Object.assign(new AiError("ai_bad_answer", MSG.ai_bad_answer, { detail: "parse" }),
-            { meta: { usage: pickUsage(msg.usage), model: msg.model || model, ms: Date.now() - t0, stopReason: msg.stop_reason } });
+            { meta: { usage: readUsage(msg.usage, msg.model, model), model: msg.model || model, ms: Date.now() - t0, stopReason: msg.stop_reason } });
         }
       }
     }
-    const usage = pickUsage(msg.usage);
+    const usage = readUsage(msg.usage, msg.model, model);
     const meta = { usage, model: msg.model || model, ms: Date.now() - t0, stopReason: msg.stop_reason };
     if (msg.stop_reason === "refusal") {
       throw Object.assign(new AiError("ai_refused", MSG.ai_refused, { detail: "refusal" + (msg.stop_details?.category ? ": " + msg.stop_details.category : "") }), { meta });
@@ -239,6 +286,11 @@ export async function callClaude({ kind, system, user, schema, maxTokens }) {
   } catch (e) {
     const err = toAiError(e, { timedOut });
     if (e && e.meta && !err.meta) err.meta = e.meta;
+    // Ответ оборвался посреди потока (таймаут, обрыв связи, ошибка API): токены, о которых API уже
+    // сообщил в потоке, тоже потрачены — берём их из последнего снимка ответа.
+    if (!err.meta && last && last.usage) {
+      err.meta = { usage: readUsage(last.usage, last.model, model), model: last.model || model, ms: Date.now() - t0, stopReason: last.stop_reason || null };
+    }
     throw err;
   } finally {
     clearTimeout(timer);
@@ -606,15 +658,22 @@ export function prepareRefs(refs) {
 
 export const defaultCache = new AiCache();
 
+// Расход настоящих вызовов ИИ этого запроса: meta.usage (токены), meta.usd (оценка в долларах),
+// meta.usdUnknown — у какого-то вызова тариф модели неизвестен.
 function addUsage(meta, u) {
   if (!u) return;
   meta.usage = meta.usage || { input_tokens: 0, output_tokens: 0 };
   meta.usage.input_tokens += u.input_tokens || 0;
   meta.usage.output_tokens += u.output_tokens || 0;
+  if (Number.isFinite(u.usd)) meta.usd = (meta.usd || 0) + u.usd;
+  else meta.usdUnknown = true;
 }
 
 // opts: { cache: AiCache | false, noCache: true (то же, что cache: false), beforeCall: async () => {}, meta: {} }
 // beforeCall вызывается только перед настоящим обращением к ИИ (не при ответе из кеша) — здесь стоят лимиты.
+// compute() возвращает { value, usage }: value попадает в кеш, usage (токены и стоимость вызова) — в meta.
+// Возвращает { value, cached, shared }: cached — ответ взят из кеша; shared — дождались такого же
+// одновременного запроса (ИИ этим запросом не вызывался, но ответ не из кеша).
 async function runCached(kind, input, opts, compute) {
   const meta = opts.meta || {};
   const cfg = aiConfig();
@@ -624,20 +683,19 @@ async function runCached(kind, input, opts, compute) {
     if (opts.beforeCall) await opts.beforeCall();
     meta.calls = (meta.calls || 0) + 1;
     try {
-      const v = await compute();
-      addUsage(meta, v.usage);
-      return v;
+      const r = await compute();
+      addUsage(meta, r.usage);
+      return r.value;
     } catch (e) {
       if (e && e.meta) addUsage(meta, e.meta.usage);
       throw e;
     }
   };
   const cache = opts.cache === false || opts.noCache ? null : opts.cache || defaultCache;
-  if (!cache) { meta.cached = false; return fresh(); }
+  if (!cache) return { value: await fresh(), cached: false, shared: false };
   const key = cacheKey(cfg.model, cfg.effort, PROMPT_VERSION[kind], kind, input);
   const r = await cache.run(key, fresh);
-  meta.cached = meta.cached === undefined ? r.cached || r.shared : meta.cached && (r.cached || r.shared);
-  return r.value;
+  return { value: r.value, cached: !!r.cached, shared: !!r.shared };
 }
 
 const onceAsync = (fn) => {
@@ -661,16 +719,23 @@ export async function extractRules(text, opts = {}) {
   const m = prepareMethod(text);
   const meta = opts.meta || (opts.meta = {});
   meta.in = { chars: m.text.length };
-  const value = await runCached("method", { text: m.text }, opts, async () => {
+  const rc = await runCached("method", { text: m.text }, opts, async () => {
     const nonce = makeNonce();
     const r = await callClaude({ kind: "method", ...buildMethodPrompt({ text: m.text, nonce }), schema: MethodSchema, maxTokens: MAX_TOKENS.method });
     const checked = checkRulesAnswer(r.parsed, m.text);
     if (!checked.ok) throw Object.assign(new AiError("ai_bad_answer", MSG.ai_bad_answer, { detail: checked.why }), { meta: r });
-    return { model: r.model, doc: checked.doc, rules: checked.rules, summary: checked.summary, usage: { input_tokens: r.usage.input_tokens, output_tokens: r.usage.output_tokens } };
+    return {
+      value: { model: r.model, doc: checked.doc, rules: checked.rules, summary: checked.summary, usage: { input_tokens: r.usage.input_tokens, output_tokens: r.usage.output_tokens } },
+      usage: r.usage,
+    };
   });
+  const value = rc.value;
+  meta.cached = rc.cached;
+  if (rc.shared) meta.shared = true;
   meta.out = { rules: value.summary.total, attention: value.summary.attention, quotesNotFound: value.rules.filter((r) => !r.quoteFound).length };
+  // usage — токены вызова, который дал этот ответ; при cached: true этот запрос токенов не тратил.
   return {
-    ok: true, model: value.model, promptVersion: PROMPT_VERSION.method, chars: m.chars, methodHash: m.methodHash,
+    ok: true, model: value.model, promptVersion: PROMPT_VERSION.method, cached: rc.cached, chars: m.chars, methodHash: m.methodHash,
     doc: value.doc, rules: value.rules, summary: value.summary, usage: value.usage,
   };
 }
@@ -680,15 +745,21 @@ export async function checkContent(input = {}, opts = {}) {
   const meta = opts.meta || (opts.meta = {});
   meta.in = { intro: c.intro.length, concl: c.concl.length, introCut: c.introCut, conclCut: c.conclCut, criteria: c.criteria.length, redacted: c.redacted };
   const key = { intro: c.intro, concl: c.concl, introCut: c.introCut, conclCut: c.conclCut, criteria: c.criteria };
-  const value = await runCached("content", key, opts, async () => {
+  const rc = await runCached("content", key, opts, async () => {
     const nonce = makeNonce();
     const r = await callClaude({ kind: "content", ...buildContentPrompt({ ...key, nonce }), schema: ContentSchema, maxTokens: MAX_TOKENS.content });
     const checked = checkContentAnswer(r.parsed, key);
     if (!checked.ok) throw Object.assign(new AiError("ai_bad_answer", MSG.ai_bad_answer, { detail: checked.why }), { meta: r });
-    return { model: r.model, intro: checked.intro, tasks: checked.tasks, injection: checked.injection, notes: checked.notes, usage: r.usage };
+    return {
+      value: { model: r.model, intro: checked.intro, tasks: checked.tasks, injection: checked.injection, notes: checked.notes, usage: { input_tokens: r.usage.input_tokens, output_tokens: r.usage.output_tokens } },
+      usage: r.usage,
+    };
   });
+  const value = rc.value;
+  meta.cached = rc.cached;
+  if (rc.shared) meta.shared = true;
   meta.out = { unclear: value.intro.filter((x) => x.status === "unclear").length, tasks: value.tasks.length, injection: value.injection.length };
-  return withUsage({ ok: true, model: value.model, promptVersion: PROMPT_VERSION.content, intro: value.intro, tasks: value.tasks, injection: value.injection, notes: value.notes }, value.usage);
+  return withUsage({ ok: true, model: value.model, promptVersion: PROMPT_VERSION.content, cached: rc.cached, intro: value.intro, tasks: value.tasks, injection: value.injection, notes: value.notes }, value.usage);
 }
 
 async function mapLimit(items, limit, fn) {
@@ -711,18 +782,25 @@ export async function assessRefs(refs, opts = {}) {
   const shared = { ...opts, beforeCall: onceAsync(opts.beforeCall), meta };
   const results = await mapLimit(batches, LIMITS.refsParallel, async (batch) => {
     try {
-      const value = await runCached("refs", { refs: batch }, shared, async () => {
+      const rc = await runCached("refs", { refs: batch }, shared, async () => {
         const nonce = makeNonce();
         const r = await callClaude({ kind: "refs", ...buildRefsPrompt({ refs: batch, today, nonce }), schema: RefsSchema, maxTokens: MAX_TOKENS.refs });
         const checked = checkRefsAnswer(r.parsed, batch, nowYear);
         if (!checked.ok) throw Object.assign(new AiError("ai_bad_answer", MSG.ai_bad_answer, { detail: checked.why }), { meta: r });
-        return { model: r.model, items: checked.items, missing: checked.missing, injection: checked.injection, usage: r.usage };
+        return {
+          value: { model: r.model, items: checked.items, missing: checked.missing, injection: checked.injection, usage: { input_tokens: r.usage.input_tokens, output_tokens: r.usage.output_tokens } },
+          usage: r.usage,
+        };
       });
-      return { ok: true, value };
+      return { ok: true, value: rc.value, cached: rc.cached, shared: rc.shared };
     } catch (e) {
       return { ok: false, error: toAiError(e), batch };
     }
   });
+  // cached: true — только если все пачки взяты из кеша.
+  const cached = results.every((r) => r.ok && r.cached);
+  meta.cached = cached;
+  if (results.some((r) => r.ok && r.shared)) meta.shared = true;
   const okRes = results.filter((r) => r.ok);
   if (!okRes.length) throw results[0].error; // все пачки не удались — отдаём причину первой
   // Лимит или отсутствие ключа — показываем человеку причину, а не сотню «не проверен».
@@ -737,5 +815,5 @@ export async function assessRefs(refs, opts = {}) {
     input_tokens: u.input_tokens + (r.value.usage?.input_tokens || 0),
     output_tokens: u.output_tokens + (r.value.usage?.output_tokens || 0),
   }), { input_tokens: 0, output_tokens: 0 });
-  return withUsage({ ok: true, model: okRes[0].value.model, promptVersion: PROMPT_VERSION.refs, items, missing, injection }, usage);
+  return withUsage({ ok: true, model: okRes[0].value.model, promptVersion: PROMPT_VERSION.refs, cached, items, missing, injection }, usage);
 }

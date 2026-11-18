@@ -27,6 +27,21 @@ export const empty = (pPr = "") => p(`<w:r><w:rPr><w:b w:val="0"/></w:rPr></w:r>
 export const pageBreak = () => `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
 export const title = (text) => para(text, `<w:ind w:firstLine="0"/><w:jc w:val="center"/>`);
 export const heading = (text, pPr = `<w:ind w:firstLine="0"/><w:jc w:val="center"/>`) => para(text, pPr, `<w:b/>`);
+// Прогон без xml:space="preserve" (так пишет Word, когда по краям текста нет пробелов)
+export const rawRun = (text, rPr = "") => `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : ""}<w:t>${esc(text)}</w:t></w:r>`;
+// Заголовок, который Word при последнем сохранении показал с новой страницы (w:lastRenderedPageBreak), без явного разрыва
+export const renderedHeading = (text, pPr = `<w:ind w:firstLine="0"/><w:jc w:val="center"/>`) =>
+  p(`<w:r><w:rPr><w:b/></w:rPr><w:lastRenderedPageBreak/><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`, pPr);
+// Рисунок отдельной строкой по центру
+export const figure = () => p(SPECIAL.drawing, `<w:ind w:firstLine="0"/><w:jc w:val="center"/>`);
+// Простая таблица: строки × ячейки, ширина столбцов в twips (по умолчанию 2 × 85 мм = 170 мм)
+export function table(rows = [["Показатель", "Значение"], ["Выручка", "120"]], widths = [4819, 4819], tblW = `<w:tblW w:w="0" w:type="auto"/>`) {
+  const cell = (t, w) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>${para(t, `<w:ind w:firstLine="0"/><w:jc w:val="left"/>`)}</w:tc>`;
+  return `<w:tbl><w:tblPr>${tblW}</w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>` +
+    rows.map(r => `<w:tr>${r.map((t, i) => cell(t, widths[i] || widths[0])).join("")}</w:tr>`).join("") + `</w:tbl>`;
+}
+// Добавить стили к стандартному styles.xml
+export const withStyles = (xml) => STYLES.replace("</w:styles>", xml + "</w:styles>");
 
 export const SPECIAL = {
   oMathPara: `<m:oMathPara><m:oMath><m:r><w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr><m:t>E=m</m:t></m:r><m:sSup><m:e><m:r><m:t>c</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup></m:oMath></m:oMathPara>`,

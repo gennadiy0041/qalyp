@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import net from "node:net";
 import { startFakeAnthropic } from "./lib/fake-anthropic.mjs";
-import { loadApp, ROOT } from "./lib/app.mjs";
+import { loadApp, sampleBuffer, ROOT } from "./lib/app.mjs";
 import { makeDocx } from "./lib/docx-factory.mjs";
 
 process.env.QALYP_AI_RETRIES = "0";
@@ -220,6 +220,10 @@ test("сквозной путь: проверка → ИИ → источник�
       assert.match(out, /Проверьте вручную: нет издательства и числа страниц/);
       assert.doesNotMatch(out, /выдуман|фальшив|не существует/i);
       assert.match($("summary").textContent, /Источники: высокий риск — 1/);
+      // первый запуск — свежие ответы, без пометки о кеше
+      assert.doesNotMatch(out, /кеша сервера/);
+      // пометки о цене — только подсказка: оплаты нет, всё работает
+      assert.match($("aiBox").textContent, /Полный отчёт — 990 ₸ для студента; для студентов вуза с лицензией — бесплатно/);
     });
 
     await t.test("методичка: ИИ выписал правила, человек сверил и применил профиль", async () => {
@@ -282,11 +286,22 @@ test("сквозной путь: проверка → ИИ → источник�
       assert.equal(anthropicCalls().length - before, 1);
       const refsLog = logs.filter((l) => l.ep === "/api/ai/refs");
       assert.equal(refsLog.at(-1).cached, true);
+      // сервер сказал «из кеша» — человек видит это рядом с выводом ИИ по источникам, а у введения (новый вызов) пометки нет
+      assert.equal(ev("state.ai.refsAi.data.cached"), true);
+      assert.notEqual(ev("state.ai.content.data.cached"), true);
+      const parts = [...$("aiOut").querySelectorAll(".ai-part")];
+      const refsPart = parts.find((p) => /Список источников/.test(p.querySelector("h3").textContent));
+      const introPart = parts.find((p) => /Введение и заключение/.test(p.querySelector("h3").textContent));
+      assert.match(refsPart.querySelector(".note.cached").textContent, /ответ из кеша сервера: такой же запрос уже выполнялся/);
+      assert.equal(introPart.querySelector(".note.cached"), null);
     });
 
     let fixed;
     await t.test("исправить оформление: файл сохранён, журнал правок показан", async () => {
       const scoreBefore = ev("state.R.score");
+      // у кнопки — пометка о цене, но кнопка работает: оплаты в продукте нет
+      assert.match($("summary").textContent, /Полный отчёт — 990 ₸ для студента/);
+      assert.equal($("fixBtn").disabled, false);
       ev("state.downloads = { save: async ({ filename, data }) => { window.__savedFiles.push({ filename, data }); } }");
       $("fixBtn").click();
       await app.waitFor("window.__savedFiles.length > 0 && Array.isArray(state.fixLog)", 20000);
@@ -335,6 +350,57 @@ test("сквозной путь: проверка → ИИ → источник�
       assert.ok(s.score > fixed.scoreBefore, `балл после исправления ${s.score} не выше, чем до ${fixed.scoreBefore}`);
       assert.equal(app.bodyText(), textBefore, "текст работы изменился после исправления (кроме подписей)");
       assert.equal(ev("state.ai"), null, "выводы ИИ по прежней работе к новой не приклеились");
+    });
+
+    await t.test("проверка группы: кодом в браузере, без запросов на сервер; строка открывает ту же работу; эталон примера тот же", async () => {
+      // в тарифах названа пакетная проверка группы — она есть на странице и ничем не закрыта
+      $("pricingBtn").click();
+      assert.match($("pricingPanel").textContent, /пакетная проверка группы/);
+      $("pricingBtn").click();
+      assert.ok($("batchBox"), "секция «Проверка группы» есть");
+      assert.equal($("batchFile").multiple, true);
+      const callsBefore = calls.length, claudeBefore = anthropicCalls().length;
+      const F = app.window.File;
+      const files = [new F([new Uint8Array(sampleBuffer())], "01 Пример.docx"), new F([new Uint8Array(fixed.buf)], "02 Исправленный.docx"), new F([new Uint8Array([1, 2, 3])], "03 Битый.docx")];
+      Object.defineProperty($("batchFile"), "files", { value: files, configurable: true });
+      $("batchFile").dispatchEvent(new app.window.Event("change", { bubbles: true }));
+      const done = "!batchSt.running && batchSt.rows.length === 3 && batchSt.rows.every(r => r.status !== 'wait' && r.status !== 'run')";
+      await app.waitFor(done, 60000);
+      const rows = () => JSON.parse(ev("JSON.stringify(batchSt.rows.map(r => ({ name: r.name, status: r.status, score: r.score, errs: r.errs, warns: r.warns, reason: r.reason })))"));
+      let rs = rows();
+      assert.deepEqual(rs.map((r) => r.status === "failed"), [false, false, true], JSON.stringify(rs));
+      assert.match(rs[2].reason, /Файл повреждён/);
+      assert.equal(ev("batchSt.profileId"), ev("profile().id"), "группа проверена по выбранному профилю — из методички");
+      assert.ok(rs[1].score > rs[0].score, `исправленный файл (${rs[1].score}) в таблице группы не лучше исходного (${rs[0].score})`);
+      assert.equal($("batchOut").hidden, false);
+      assert.match($("batchOut").textContent, /Решение принимает нормоконтролёр/);
+      // строка открывает работу в основном отчёте тем же путём, что загрузка файла: балл и счётчики те же, что в таблице
+      [...app.document.querySelectorAll("#batchTable tbody tr")].find((tr) => tr.textContent.includes("01 Пример.docx")).cells[2].click();
+      await app.waitFor(`state.name === "01 Пример.docx" && !state.busy && !!state.R`);
+      assert.deepEqual([ev("state.R.score"), ev("state.R.errs"), ev("state.R.warns")], [rs[0].score, rs[0].errs, rs[0].warns]);
+      assert.ok(app.document.querySelector("#batchTable tr.cur").textContent.includes("01 Пример.docx"));
+      // по встроенному профилю ГОСТ — эталон примера из tests/fixtures/sample-expected.json
+      const expected = JSON.parse(fs.readFileSync(path.join(ROOT, "tests", "fixtures", "sample-expected.json"), "utf8"));
+      const sel = $("profileSel"); sel.value = "gost-course"; sel.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+      $("batchRerun").click();
+      await app.waitFor(`${done} && batchSt.profileId === 'gost-course'`, 60000);
+      rs = rows();
+      assert.deepEqual([rs[0].score, rs[0].errs, rs[0].warns], [expected.before.score, expected.before.errs, expected.before.warns]);
+      // CSV для Excel: BOM, «;», строки через CRLF
+      const nSaved = app.saved.length;
+      $("batchCsv").click();
+      await app.waitFor(`window.__savedFiles.length > ${nSaved}`);
+      const csv = app.saved.at(-1);
+      assert.match(csv.filename, /^qalyp-gruppa-\d{4}-\d{2}-\d{2}\.csv$/);
+      const ab = await new Promise((res, rej) => { const fr = new app.window.FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsArrayBuffer(csv.data); });
+      const bytes = Buffer.from(ab);
+      assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+      const lines = bytes.subarray(3).toString("utf8").split("\r\n").filter(Boolean);
+      assert.equal(lines.length, 4);
+      assert.match(lines[1], new RegExp(`^1;01 Пример\\.docx;${expected.before.score};${expected.before.errs};${expected.before.warns};`));
+      // всё — в браузере: ни одного запроса к серверу Qalyp и к Claude
+      assert.deepEqual(calls.slice(callsBefore).map((c) => `${c.method} ${c.path}`), []);
+      assert.equal(anthropicCalls().length, claudeBefore);
     });
 
     await t.test("в консоли страницы нет ошибок, журнал сервера без текстов", async () => {

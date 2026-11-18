@@ -14,7 +14,7 @@ process.env.QALYP_LOG = "0";
 delete process.env.QALYP_MODEL;
 delete process.env.QALYP_EFFORT;
 
-const { createApp, CSP } = await import("../server/index.js");
+const { createApp, CSP, clientIpResolver } = await import("../server/index.js");
 const ai = await import("../server/ai.js");
 const { redact, HIDDEN } = await import("../server/redact.js");
 const { wrap, paramsForPrompt, PROMPT_VERSION } = await import("../server/prompts.js");
@@ -166,7 +166,8 @@ test("без ключа: health показывает ai.enabled=false, ИИ-эн
   assert.equal(h.ai.model, "claude-opus-5-5");
   assert.equal(h.ai.effort, "medium");
   assert.equal(typeof h.version, "string");
-  assert.deepEqual(h.limits, { perHour: 30, perDay: 400 });
+  assert.deepEqual(h.limits, { perHour: 30, perDay: 400, methodPerHour: 6, methodPerDay: 40, tokensPerDay: 3_000_000 });
+  assert.deepEqual(h.usage24h, { requests: 0, calls: 0, input_tokens: 0, output_tokens: 0, tokens: 0 });
   for (const [p, b] of [["/api/ai/method", { text: METHOD }], ["/api/ai/content", { intro: INTRO, concl: CONCL }], ["/api/ai/refs", { refs: REFS }]]) {
     const r = await s.post(p, b);
     assert.equal(r.status, 503, p);
@@ -181,18 +182,21 @@ test("health: модель, effort и лимиты берутся из окру�
   process.env.QALYP_EFFORT = "high";
   process.env.QALYP_AI_PER_HOUR = "7";
   process.env.QALYP_AI_PER_DAY = "70";
+  process.env.QALYP_METHOD_PER_HOUR = "3";
+  process.env.QALYP_METHOD_PER_DAY = "9";
+  process.env.QALYP_TOKENS_PER_DAY = "5000";
   try {
     const s = await startApp();
     const h = await (await s.get("/api/health")).json();
     assert.deepEqual(h.ai, { enabled: true, model: "claude-test-model", effort: "high" });
-    assert.deepEqual(h.limits, { perHour: 7, perDay: 70 });
+    assert.deepEqual(h.limits, { perHour: 7, perDay: 70, methodPerHour: 3, methodPerDay: 9, tokensPerDay: 5000 });
     fake.push({ json: CONTENT_ANSWER });
     await s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
     assert.equal(fake.requests[0].body.model, "claude-test-model");
     assert.equal(fake.requests[0].body.output_config.effort, "high");
     await s.close();
   } finally {
-    delete process.env.QALYP_MODEL; delete process.env.QALYP_EFFORT; delete process.env.QALYP_AI_PER_HOUR; delete process.env.QALYP_AI_PER_DAY;
+    for (const k of ["QALYP_MODEL", "QALYP_EFFORT", "QALYP_AI_PER_HOUR", "QALYP_AI_PER_DAY", "QALYP_METHOD_PER_HOUR", "QALYP_METHOD_PER_DAY", "QALYP_TOKENS_PER_DAY"]) delete process.env[k];
   }
 });
 
@@ -677,24 +681,59 @@ test("кеш: второй одинаковый запрос не идёт в AP
   const a = await s.post("/api/ai/content", body);
   const b = await s.post("/api/ai/content", body);
   assert.equal(fake.requests.length, 1);
-  assert.deepEqual(b.json, a.json);
+  const { cached: ca, ...restA } = a.json;
+  const { cached: cb, ...restB } = b.json;
+  assert.deepEqual(restB, restA);
+  assert.deepEqual([ca, cb], [false, true], "признак cached: первый ответ — от ИИ, второй — из кеша");
   assert.equal(s.logs.at(-1).cached, true);
   assert.equal(s.logs.at(-1).tokens, null, "ответ из кеша ничего не стоит");
+  assert.equal(s.logs.at(-1).usd, 0);
   // другой вход — новый вызов
   await s.post("/api/ai/content", { ...body, concl: CONCL + " Дополнение." });
   assert.equal(fake.requests.length, 2);
-  // одновременные одинаковые запросы
+  // одновременные одинаковые запросы: один вызов ИИ; второй ждёт его, но ответ не из кеша — cached: false
   const body3 = { intro: INTRO + " Третий.", concl: CONCL };
   const [x, y] = await Promise.all([s.post("/api/ai/content", body3), s.post("/api/ai/content", body3)]);
   assert.equal(x.status, 200); assert.equal(y.status, 200);
+  assert.deepEqual([x.json.cached, y.json.cached], [false, false]);
   assert.equal(fake.requests.length, 3);
+  assert.equal(s.logs.filter((l) => l.shared).length, 1, "в журнале видно, что запрос дождался такого же");
   // методичка и источники тоже кешируются
   fake.setHandler((bd) => (bd.output_config.format.schema.properties.rules ? { json: METHOD_ANSWER } : refsEcho(bd)));
-  await s.post("/api/ai/method", { text: METHOD });
-  await s.post("/api/ai/method", { text: METHOD });
-  await s.post("/api/ai/refs", { refs: REFS });
-  await s.post("/api/ai/refs", { refs: REFS });
+  const m1 = await s.post("/api/ai/method", { text: METHOD });
+  const m2 = await s.post("/api/ai/method", { text: METHOD });
+  assert.deepEqual([m1.json.cached, m2.json.cached], [false, true]);
+  assert.deepEqual(m2.json.usage, m1.json.usage, "usage — токены вызова, который дал ответ");
+  const r1 = await s.post("/api/ai/refs", { refs: REFS });
+  const r2 = await s.post("/api/ai/refs", { refs: REFS });
+  assert.deepEqual([r1.json.cached, r2.json.cached], [false, true]);
   assert.equal(fake.requests.length, 5);
+  await s.close();
+});
+
+test("cached у источников: true, только если все пачки из кеша", async () => {
+  const s = await startApp();
+  fake.setHandler((body) => (/ОТКАЗ/.test(userText({ body })) ? { stopReason: "refusal" } : refsEcho(body)));
+  const mk = (from, to, word) => Array.from({ length: 250 }, (_, i) => ({ n: i + 1, text: `Автор ${i + 1}. ${i + 1 >= from && i + 1 <= to ? word : "Книга"}. — Алматы, 2021.` }));
+  const all = mk(0, 0, "");
+  const r1 = await s.post("/api/ai/refs", { refs: all });
+  assert.equal(r1.status, 200, r1.text);
+  assert.equal(r1.json.cached, false);
+  assert.equal(fake.requests.length, 3);
+  const r2 = await s.post("/api/ai/refs", { refs: all });
+  assert.equal(r2.json.cached, true, "все три пачки из кеша");
+  assert.equal(s.logs.at(-1).calls, 0);
+  assert.equal(s.logs.at(-1).usd, 0);
+  // вторая пачка (101–200) другая: первая и третья — из кеша, вторая — от ИИ
+  const r3 = await s.post("/api/ai/refs", { refs: mk(101, 200, "Учебник") });
+  assert.equal(r3.json.cached, false);
+  assert.equal(s.logs.at(-1).calls, 1);
+  assert.equal(fake.requests.length, 4);
+  // вторая пачка не удалась: остальные из кеша, но ответ неполный — cached: false
+  const r4 = await s.post("/api/ai/refs", { refs: mk(101, 200, "ОТКАЗ") });
+  assert.equal(r4.status, 200, r4.text);
+  assert.equal(r4.json.cached, false);
+  assert.equal(r4.json.missing.length, 100);
   await s.close();
 });
 
@@ -744,6 +783,239 @@ test("лимит в сутки на весь сервер — 429 daily_limit", 
   assert.equal(rr.status, 429);
   assert.equal(rr.json.code, "daily_limit");
   await s.close();
+});
+
+const isMethodReq = (bd) => !!bd.output_config.format.schema.properties.rules;
+const methodOrContent = (bd) => ({ json: isMethodReq(bd) ? METHOD_ANSWER : CONTENT_ANSWER });
+
+test("AiLimiter: лимиты методички и бюджет токенов по умолчанию и из окружения", () => {
+  const def = new AiLimiter();
+  assert.deepEqual(def.limits(), { perHour: 30, perDay: 400, methodPerHour: 6, methodPerDay: 40, tokensPerDay: 3_000_000 });
+  process.env.QALYP_METHOD_PER_HOUR = "2";
+  process.env.QALYP_TOKENS_PER_DAY = "плохо";
+  try {
+    const l = new AiLimiter({ perHour: 5 });
+    assert.deepEqual(l.limits(), { perHour: 5, perDay: 400, methodPerHour: 2, methodPerDay: 40, tokensPerDay: 3_000_000 }, "неверное значение — по умолчанию");
+  } finally {
+    delete process.env.QALYP_METHOD_PER_HOUR; delete process.env.QALYP_TOKENS_PER_DAY;
+  }
+});
+
+test("методичка: свой лимит в час с адреса (rate_limited) и в сутки на сервер (daily_limit); кеш и другие проверки не затронуты", async () => {
+  const s = await startApp({ aiLimiter: new AiLimiter({ perHour: 100, perDay: 100, methodPerHour: 2, methodPerDay: 3 }) });
+  fake.setHandler(methodOrContent);
+  const m = (i) => ({ text: METHOD + "\n3.7 Вариант методички " + i + "." });
+  const A = { "x-forwarded-for": "10.1.0.1" };
+  assert.equal((await s.post("/api/ai/method", m(1), A)).status, 200);
+  assert.equal((await s.post("/api/ai/method", m(2), A)).status, 200);
+  const r = await s.post("/api/ai/method", m(3), A);
+  assert.equal(r.status, 429);
+  assert.equal(r.json.code, "rate_limited");
+  assert.match(r.json.message, /разборов методички с вашего адреса: не больше 2 в час/);
+  assert.ok(Number(r.headers.get("retry-after")) > 0);
+  const again = await s.post("/api/ai/method", m(1), A);
+  assert.equal(again.status, 200, "ответ из кеша лимит не тратит");
+  assert.equal(again.json.cached, true);
+  assert.equal((await s.post("/api/ai/content", { intro: INTRO, concl: CONCL }, A)).status, 200, "проверка введения с того же адреса работает");
+  assert.equal((await s.post("/api/ai/method", m(3), { "x-forwarded-for": "10.1.0.2" })).status, 200, "третий разбор за сутки — с другого адреса");
+  const d = await s.post("/api/ai/method", m(4), { "x-forwarded-for": "10.1.0.3" });
+  assert.equal(d.status, 429);
+  assert.equal(d.json.code, "daily_limit");
+  assert.match(d.json.message, /общий лимит 3 разборов в сутки/);
+  assert.match(d.json.message, /Проверка оформления/);
+  assert.equal((await s.post("/api/ai/content", { intro: INTRO + " Другое.", concl: CONCL }, { "x-forwarded-for": "10.1.0.3" })).status, 200,
+    "лимит методички не закрывает остальные ИИ-проверки");
+  assert.equal(fake.requests.length, 5);
+  assert.equal(s.logs.filter((l) => l.code === "rate_limited" || l.code === "daily_limit").every((l) => l.calls === 0 && l.usd === 0), true);
+  await s.close();
+});
+
+test("разбор методички считается и в общем лимите ИИ", async () => {
+  const s = await startApp({ aiLimiter: new AiLimiter({ perHour: 2, perDay: 100, methodPerHour: 10, methodPerDay: 10 }) });
+  fake.setHandler(methodOrContent);
+  assert.equal((await s.post("/api/ai/method", { text: METHOD })).status, 200);
+  assert.equal((await s.post("/api/ai/content", { intro: INTRO, concl: CONCL })).status, 200);
+  const r = await s.post("/api/ai/content", { intro: INTRO + " Ещё.", concl: CONCL });
+  assert.equal(r.status, 429);
+  assert.match(r.json.message, /ИИ-проверок с вашего адреса: не больше 2 в час/);
+  await s.close();
+});
+
+test("суточный бюджет токенов на сервер: считается по usage ответов; исчерпан — 429 daily_limit; через сутки снова можно", async () => {
+  let now = Date.UTC(2026, 10, 18, 9, 0, 0);
+  const limiter = new AiLimiter({ tokensPerDay: 1000, now: () => now });
+  const s = await startApp({ aiLimiter: limiter });
+  fake.setHandler((bd) => ({ ...methodOrContent(bd), usage: { input_tokens: 600, output_tokens: 300 } }));
+  const mk = (i) => ({ intro: INTRO + " Вариант " + i, concl: CONCL });
+  assert.equal((await s.post("/api/ai/content", mk(1), { "x-forwarded-for": "10.2.0.1" })).status, 200);
+  now += 60_000;
+  assert.equal((await s.post("/api/ai/content", mk(2), { "x-forwarded-for": "10.2.0.2" })).status, 200, "900 из 1000 — ещё можно");
+  const r = await s.post("/api/ai/content", mk(3), { "x-forwarded-for": "10.2.0.3" });
+  assert.equal(r.status, 429);
+  assert.equal(r.json.code, "daily_limit");
+  assert.match(r.json.message, /суточный бюджет сервера на ИИ — 1\s000 токенов/u);
+  assert.match(r.json.message, /Проверка оформления работает и без ИИ/);
+  // место освободится, когда из окна выйдет первый запрос: 1800 − 900 = 900 < 1000
+  assert.equal(Number(r.headers.get("retry-after")), 24 * 3600 - 60);
+  const m = await s.post("/api/ai/method", { text: METHOD }, { "x-forwarded-for": "10.2.0.4" });
+  assert.equal(m.status, 429, "бюджет общий для всех ИИ-проверок");
+  assert.equal(m.json.code, "daily_limit");
+  assert.equal((await s.post("/api/ai/content", mk(1), { "x-forwarded-for": "10.2.0.5" })).status, 200, "ответ из кеша бюджет не тратит");
+  assert.equal(fake.requests.length, 2);
+  const h = await (await s.get("/api/health")).json();
+  assert.deepEqual(h.usage24h, { requests: 2, calls: 2, input_tokens: 1200, output_tokens: 600, tokens: 1800 });
+  assert.equal(s.logs.at(-1).tokens24h, 1800);
+  now += 24 * 3600 * 1000 - 60_000 + 1; // первый запрос вышел из окна суток
+  assert.equal((await s.post("/api/ai/content", mk(3), { "x-forwarded-for": "10.2.0.3" })).status, 200);
+  assert.equal(limiter.usage24h().tokens, 1800, "в окне: второй и новый запрос");
+  await s.close();
+});
+
+test("ответ оборвался по таймауту: токены из начала потока учитываются в журнале и бюджете", async () => {
+  process.env.QALYP_AI_TIMEOUT_MS = "400";
+  const limiter = new AiLimiter();
+  const s = await startApp({ aiLimiter: limiter });
+  fake.push({ json: { intro: [], tasks: [], injection: [] }, chunkDelayMs: 1500, usage: { input_tokens: 777, output_tokens: 50 } });
+  const r = await s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
+  assert.equal(r.status, 504, r.text);
+  assert.equal(r.json.code, "timeout");
+  const l = s.logs.at(-1);
+  assert.deepEqual(l.tokens, { in: 777, out: 1 }, "в начале потока API сообщает входные токены");
+  assert.ok(Math.abs(l.usd - (777 * 4 + 1 * 20) / 1e6) < 1e-12);
+  assert.equal(limiter.usage24h().tokens, 778);
+  await s.close();
+});
+
+test("журнал: оценка стоимости запроса в долларах и сумма за сутки", async () => {
+  const s = await startApp();
+  fake.push({ json: METHOD_ANSWER, usage: { input_tokens: 1_000_000, output_tokens: 100_000 } }, { json: CONTENT_ANSWER });
+  await s.post("/api/ai/method", { text: METHOD });
+  const m = s.logs.at(-1);
+  assert.equal(m.usd, 6, "Opus 5.5: 1 млн входных × $4 + 100 тыс. выходных × $20");
+  assert.equal(m.usd24h, 6);
+  assert.equal(m.tokens24h, 1_100_000);
+  await s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
+  const c = s.logs.at(-1);
+  assert.equal(c.usd, 0.0014, "100 × $4 + 50 × $20 за миллион");
+  assert.equal(c.usd24h, 6.0014);
+  await s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
+  assert.equal(s.logs.at(-1).usd, 0, "из кеша — бесплатно");
+  assert.equal(s.logs.at(-1).usd24h, 6.0014);
+  // ошибки до вызова ИИ ничего не стоят
+  await s.post("/api/ai/content", {});
+  assert.deepEqual([s.logs.at(-1).code, s.logs.at(-1).usd, s.logs.at(-1).calls], ["bad_request", 0, 0]);
+  // в журнале только числа и коды — без текста
+  assert.ok(!JSON.stringify(s.logs).includes("Times New Roman"));
+  await s.close();
+});
+
+test("журнал: запасная модель — по её тарифу; неизвестная модель — usd: null, токены считаются", async () => {
+  const s = await startApp();
+  fake.push({ json: CONTENT_ANSWER, fallback: { to: "claude-opus-5" } });
+  const r = await s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
+  assert.equal(r.json.model, "claude-opus-5");
+  assert.equal(s.logs.at(-1).usd, (100 * 5 + 50 * 25) / 1e6);
+  process.env.QALYP_MODEL = "claude-test-model";
+  try {
+    fake.push({ json: CONTENT_ANSWER });
+    const r2 = await s.post("/api/ai/content", { intro: INTRO + " Другая модель.", concl: CONCL });
+    assert.equal(r2.status, 200, r2.text);
+    const l = s.logs.at(-1);
+    assert.equal(l.model, "claude-test-model");
+    assert.equal(l.usd, null);
+    assert.deepEqual(l.tokens, { in: 100, out: 50 });
+    assert.equal(l.tokens24h, 300);
+    assert.equal(l.usd24h, (100 * 5 + 50 * 25) / 1e6, "в сумму за сутки идут только оценённые запросы");
+  } finally {
+    delete process.env.QALYP_MODEL;
+  }
+  await s.close();
+});
+
+test("тарифы: Opus 5.5, Sonnet 5.5, Haiku 5.5; длинный запрос Haiku; попытки из usage.iterations", () => {
+  const near = (a, b) => Math.abs(a - b) < 1e-12;
+  assert.ok(near(ai.costUsd("claude-opus-5-5", 1e6, 1e6), 24));
+  assert.ok(near(ai.costUsd("claude-sonnet-5-5", 1e6, 1e6), 12));
+  assert.ok(near(ai.costUsd("claude-haiku-5-5", 1e6, 1e6, 50_000), 0.6));
+  assert.ok(near(ai.costUsd("claude-haiku-5-5", 200_000, 1000), (200_000 * 0.5 + 1000 * 2.5) / 1e6), "запрос длиннее 100 000 токенов");
+  assert.equal(ai.costUsd("claude-unknown", 10, 10), null);
+  assert.equal(ai.costUsd(undefined, 10, 10), null);
+  // переход на запасную модель: каждая попытка по тарифу своей модели
+  const u = ai.readUsage({ input_tokens: 2000, output_tokens: 300, iterations: [
+    { type: "message", model: null, input_tokens: 1000, output_tokens: 100 },
+    { type: "fallback_message", model: "claude-opus-5", input_tokens: 2000, output_tokens: 300 },
+  ] }, "claude-opus-5", "claude-opus-5-5");
+  assert.equal(u.input_tokens, 3000);
+  assert.equal(u.output_tokens, 400);
+  assert.ok(near(u.usd, (1000 * 4 + 100 * 20) / 1e6 + (2000 * 5 + 300 * 25) / 1e6));
+  const plain = ai.readUsage({ input_tokens: 10, output_tokens: 5 }, "claude-sonnet-5-5", "claude-opus-5-5");
+  assert.deepEqual([plain.input_tokens, plain.output_tokens], [10, 5]);
+  assert.ok(near(plain.usd, (10 * 2 + 5 * 10) / 1e6), "без iterations — по модели ответа");
+  assert.equal(ai.readUsage(undefined, "claude-opus-5-5", "claude-opus-5-5").usd, 0);
+});
+
+// ---------- здоровье и прокси Railway ----------
+
+test("health: быстро отвечает, пока идёт долгий вызов ИИ; без секретов; расход за сутки — только числа", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key-secret-123";
+  const s = await startApp();
+  fake.push({ json: CONTENT_ANSWER, delayMs: 2000, usage: { input_tokens: 400, output_tokens: 40 } });
+  const pending = s.post("/api/ai/content", { intro: INTRO, concl: CONCL });
+  for (let i = 0; i < 200 && fake.requests.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(fake.requests.length, 1, "вызов ИИ уже идёт");
+  const t0 = Date.now();
+  const res = await s.get("/api/health");
+  const ms = Date.now() - t0;
+  assert.equal(res.status, 200);
+  assert.ok(ms < 800, `health не ждёт вызова ИИ (2 с): ответил за ${ms} мс`);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const text = await res.text();
+  assert.ok(!text.includes("test-key-secret-123"), "ключа в ответе нет");
+  assert.ok(!/127\.0\.0\.1|x-forwarded/i.test(text), "адресов в ответе нет");
+  const h = JSON.parse(text);
+  assert.deepEqual(Object.keys(h).sort(), ["ai", "limits", "ok", "usage24h", "version"]);
+  assert.deepEqual(h.usage24h, { requests: 0, calls: 0, input_tokens: 0, output_tokens: 0, tokens: 0 });
+  assert.equal((await pending).status, 200);
+  const h2 = await (await s.get("/api/health")).json();
+  assert.deepEqual(h2.usage24h, { requests: 1, calls: 1, input_tokens: 400, output_tokens: 40, tokens: 440 });
+  for (const v of [...Object.values(h2.usage24h), ...Object.values(h2.limits)]) assert.equal(typeof v, "number");
+  assert.equal(h2.usd, undefined, "деньги в health не показываем");
+  await s.close();
+});
+
+test("за прокси Railway: адрес клиента из X-Real-IP; подделанный X-Forwarded-For лимит не обходит", async () => {
+  const onRailway = clientIpResolver({ RAILWAY_ENVIRONMENT_NAME: "production" });
+  assert.equal(onRailway.header, "x-real-ip");
+  const s = await startApp({ clientIp: onRailway, aiLimiter: new AiLimiter({ perHour: 1, perDay: 100 }), refsLimit: refsLimiter({ perHour: 1 }) });
+  fake.setHandler(() => ({ json: CONTENT_ANSWER }));
+  const mk = (i) => ({ intro: INTRO + " Вариант " + i, concl: CONCL });
+  assert.equal((await s.post("/api/ai/content", mk(1), { "x-real-ip": "203.0.113.5", "x-forwarded-for": "1.1.1.1, 10.0.0.1" })).status, 200);
+  const r = await s.post("/api/ai/content", mk(2), { "x-real-ip": "203.0.113.5", "x-forwarded-for": "2.2.2.2, 10.0.0.9" });
+  assert.equal(r.status, 429, "тот же клиент с другим X-Forwarded-For");
+  assert.equal((await s.post("/api/ai/content", mk(3), { "x-real-ip": "203.0.113.6" })).status, 200, "другой клиент");
+  // сверка источников считает по тому же адресу
+  assert.equal((await s.post("/api/refs/lookup", { refs: REFS }, { "x-real-ip": "203.0.113.7", "x-forwarded-for": "5.5.5.5" })).status, 503, "модуля сверки в тесте нет, но лимит пройден");
+  assert.equal((await s.post("/api/refs/lookup", { refs: REFS }, { "x-real-ip": "203.0.113.7", "x-forwarded-for": "6.6.6.6" })).status, 429);
+  await s.close();
+});
+
+test("адрес клиента: вне Railway X-Real-IP не учитывается; неверный X-Real-IP — адрес по trust proxy; QALYP_IP_HEADER", async () => {
+  const local = clientIpResolver({});
+  assert.equal(local.header, null);
+  const s = await startApp({ clientIp: local, aiLimiter: new AiLimiter({ perHour: 1, perDay: 100 }) });
+  fake.setHandler(() => ({ json: CONTENT_ANSWER }));
+  const mk = (i) => ({ intro: INTRO + " Вариант " + i, concl: CONCL });
+  assert.equal((await s.post("/api/ai/content", mk(1), { "x-real-ip": "203.0.113.5", "x-forwarded-for": "10.3.0.1" })).status, 200);
+  assert.equal((await s.post("/api/ai/content", mk(2), { "x-real-ip": "203.0.113.5", "x-forwarded-for": "10.3.0.2" })).status, 200,
+    "вне Railway X-Real-IP может прислать кто угодно — не верим ему");
+  await s.close();
+  assert.equal(clientIpResolver({ RAILWAY_ENVIRONMENT_ID: "x", QALYP_IP_HEADER: "none" }).header, null);
+  assert.equal(clientIpResolver({ QALYP_IP_HEADER: "CF-Connecting-IP" }).header, "cf-connecting-ip");
+  const fakeReq = (h, ip) => ({ get: (n) => h[n.toLowerCase()], ip });
+  const rw = clientIpResolver({ RAILWAY_ENVIRONMENT_ID: "x" });
+  assert.equal(rw(fakeReq({ "x-real-ip": "не адрес" }, "10.0.0.8")), "10.0.0.8", "неверный X-Real-IP — адрес по trust proxy");
+  assert.equal(rw(fakeReq({ "x-real-ip": "1.1.1.1, 203.0.113.9" }, "10.0.0.8")), "203.0.113.9", "два заголовка — берём последний, его дописал прокси");
+  assert.equal(rw(fakeReq({ "x-real-ip": "2001:db8::1" }, "10.0.0.8")), "2001:db8::1");
 });
 
 test("лимит на /api/refs — отдельный, 120 в час по умолчанию; роутер сверки монтируется на /api/refs", async () => {

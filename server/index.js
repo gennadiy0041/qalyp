@@ -1,13 +1,14 @@
 // Сервер Qalyp: раздаёт страницу из public/, принимает запросы к ИИ и к сверке источников.
 // Тексты работ и методичек не сохраняются и не пишутся в журнал: в журнал — только длины,
-// время, модель, версия промпта, токены и код результата.
+// время, модель, версия промпта, токены, оценка стоимости и код результата. Адреса клиентов в журнал не пишутся.
 import express from "express";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { aiConfig, aiEnabled, extractRules, checkContent, assessRefs, AiError, toAiError, MSG, PROMPT_VERSION } from "./ai.js";
 import { AiCache } from "./cache.js";
-import { AiLimiter, aiLimitsFromEnv, refsLimiter } from "./limits.js";
+import { AiLimiter, refsLimiter, roundUsd } from "./limits.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -45,6 +46,29 @@ function defaultLog(rec) {
 }
 
 const isObj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+
+// Адрес клиента для лимитов.
+// Railway пишет адрес клиента в заголовок X-Real-IP (docs.railway.com: Networking → Specs & Limits),
+// поэтому на Railway (Railway ставит каждому сервису RAILWAY_ENVIRONMENT_ID и RAILWAY_ENVIRONMENT_NAME)
+// берём адрес из него. Вне Railway этому заголовку не верим — его может прислать кто угодно; тогда
+// адрес — req.ip: последний адрес из X-Forwarded-For (trust proxy 1: перед сервером один прокси)
+// или адрес соединения.
+// QALYP_IP_HEADER задаёт заголовок явно; QALYP_IP_HEADER=none — не брать адрес из заголовка.
+export function clientIpResolver(env = process.env) {
+  const onRailway = !!(env.RAILWAY_ENVIRONMENT_ID || env.RAILWAY_ENVIRONMENT_NAME);
+  const set = String(env.QALYP_IP_HEADER ?? "").trim().toLowerCase();
+  const header = set === "none" ? null : set || (onRailway ? "x-real-ip" : null);
+  const resolve = (req) => {
+    if (header) {
+      // если заголовок пришёл дважды, Node склеивает значения через запятую; прокси дописывает своё последним
+      const v = String(req.get(header) || "").split(",").pop().trim();
+      if (net.isIP(v)) return v;
+    }
+    return req.ip || (req.socket && req.socket.remoteAddress) || "unknown";
+  };
+  resolve.header = header;
+  return resolve;
+}
 
 function sendError(res, err) {
   if (err.retryAfterSec) res.set("Retry-After", String(err.retryAfterSec));
@@ -88,29 +112,36 @@ function lazyRefsRouter(load, log) {
 export function createApp({
   log = defaultLog,
   cache = new AiCache(),
-  aiLimiter = new AiLimiter(aiLimitsFromEnv()),
+  aiLimiter = new AiLimiter(),
   refsLimit = refsLimiter(),
   loadRefs = () => import("./refs.js"),
   publicDir = path.join(root, "public"),
+  clientIp = clientIpResolver(),
 } = {}) {
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", 1); // сервер стоит за прокси Railway: адрес клиента — из X-Forwarded-For
+  app.set("trust proxy", 1); // сервер стоит за прокси Railway (один прокси): req.ip — из X-Forwarded-For
+  app.use((req, res, next) => { req.clientIp = clientIp(req); next(); });
   app.use(securityHeaders);
   app.use("/api", express.json({ limit: "3mb" }));
 
+  // Проверка здоровья (её дёргает Railway при выкладке): без обращений к ИИ, диску и сети —
+  // только настройки и счётчики из памяти. Без секретов: расход — только числа.
   app.get("/api/health", (req, res) => {
     const { model, effort } = aiConfig();
+    const u = aiLimiter.usage24h();
+    res.set("Cache-Control", "no-store");
     res.json({
       ok: true,
       version: pkg.version,
       ai: { enabled: aiEnabled(), model, effort },
-      limits: { perHour: aiLimiter.perHour, perDay: aiLimiter.perDay },
+      limits: aiLimiter.limits(),
+      usage24h: { requests: u.requests, calls: u.calls, input_tokens: u.input_tokens, output_tokens: u.output_tokens, tokens: u.tokens },
     });
   });
 
   // Общая обёртка ИИ-эндпоинтов: проверка ключа, лимиты (только перед настоящим вызовом ИИ),
-  // единый формат ошибок и одна строка журнала на запрос.
+  // учёт токенов и стоимости, единый формат ошибок и одна строка журнала на запрос.
   const aiRoute = (ep, kind, run) => async (req, res) => {
     const t0 = Date.now();
     const meta = {};
@@ -121,7 +152,7 @@ export function createApp({
       if (!aiEnabled()) throw new AiError("ai_unavailable", MSG.ai_unavailable);
       if (!isObj(req.body)) throw new AiError("bad_request", "Пустой запрос или не JSON.");
       const beforeCall = async () => {
-        const deny = aiLimiter.take(req.ip);
+        const deny = aiLimiter.take(req.clientIp, kind);
         if (deny) throw new AiError(deny.code, deny.message, { status: deny.status, retryAfterSec: deny.retryAfterSec });
       };
       const body = await run(req.body, { cache, meta, beforeCall });
@@ -133,7 +164,13 @@ export function createApp({
       detail = err.detail || undefined;
       sendError(res, err);
     } finally {
-      const usage = meta.cached ? null : meta.usage;
+      // meta.usage — только настоящие вызовы ИИ этого запроса (ответы из кеша ничего не стоят).
+      const usage = meta.usage || null;
+      const calls = meta.calls || 0;
+      // Оценка стоимости: 0 — ИИ не вызывался; null — вызывался, но токены или тариф модели неизвестны.
+      const usd = !calls ? 0 : !usage || meta.usdUnknown ? null : roundUsd(meta.usd || 0);
+      if (calls) aiLimiter.record({ calls, input_tokens: usage ? usage.input_tokens : 0, output_tokens: usage ? usage.output_tokens : 0, usd });
+      const day = aiLimiter.usage24h();
       log({
         t: new Date(t0).toISOString(),
         ep,
@@ -141,8 +178,12 @@ export function createApp({
         model: model || meta.model || aiConfig().model,
         prompt: PROMPT_VERSION[kind],
         tokens: usage ? { in: usage.input_tokens, out: usage.output_tokens } : null,
-        calls: meta.calls || 0,
+        calls,
         cached: !!meta.cached,
+        ...(meta.shared ? { shared: true } : {}),
+        usd,
+        usd24h: day.usd,
+        tokens24h: day.tokens,
         ms: Date.now() - t0,
         code,
         ...(meta.out ? { out: meta.out } : {}),
@@ -204,8 +245,15 @@ export function createApp({
 const isMain = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
 if (isMain) {
   const port = Number(process.env.PORT) || 3000;
-  createApp().listen(port, () => {
+  const clientIp = clientIpResolver();
+  const aiLimiter = new AiLimiter();
+  createApp({ clientIp, aiLimiter }).listen(port, () => {
     const { model, effort } = aiConfig();
-    console.log(JSON.stringify({ t: new Date().toISOString(), start: `http://localhost:${port}`, version: pkg.version, ai: aiEnabled() ? { model, effort } : "выключен: нет ANTHROPIC_API_KEY" }));
+    console.log(JSON.stringify({
+      t: new Date().toISOString(), start: `http://localhost:${port}`, version: pkg.version,
+      ai: aiEnabled() ? { model, effort } : "выключен: нет ANTHROPIC_API_KEY",
+      limits: aiLimiter.limits(),
+      clientIp: clientIp.header ? `заголовок ${clientIp.header}` : "req.ip (X-Forwarded-For, trust proxy 1)",
+    }));
   });
 }

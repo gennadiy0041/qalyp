@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=PT+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
-  --ground:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDF0F5; --ink:#141C27; --muted:#586577; --line:#D8DEE7; --ctl-line:#7F8A9C;
+  --ground:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDF0F5; --ink:#141C27; --muted:#586577; --line:#D8DEE7; --ctl-line:#7D889B;
   --accent:#2E47C4; --accent-ink:#FFFFFF; --accent-soft:#E6EAFB;
   --err:#C23A2E; --err-soft:#FBE9E7; --warn:#8F540A; --warn-soft:#FBF1E1; --ok:#2C7A4B; --ok-soft:#E5F3EA;
   --paper:#FFFFFF; --paper-edge:#C9D0DB; --shadow:0 1px 2px rgba(20,28,39,.06),0 8px 24px rgba(20,28,39,.06);
@@ -53,10 +53,20 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
 .switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;padding:4px 10px;border:1px solid var(--ctl-line);border-radius:999px;background:var(--surface);min-height:30px}
 .switch input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+button.switch[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.pricing{display:grid;gap:6px;margin:0 0 16px}
+.pricing h2{font-size:15px}
+.pricing p{margin:0}
+.pricing ul{margin:0;padding-left:20px;display:grid;gap:2px}
+.nw{white-space:nowrap}
+.note.price{font-size:12px;margin-top:6px}
+.note.cached{font-size:12px;color:var(--muted)}
 .grid{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
 @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
 aside{display:grid;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);min-width:0}
+/* Левая колонка «прилипает» к верху экрана и бывает выше него (шаги 1, 2 и «Проверка группы»): своя прокрутка, чтобы низ был виден */
+@media (min-width:861px){aside{max-height:calc(100vh - 24px - env(safe-area-inset-top,0px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}}
 @media (max-width:860px){aside{position:static}}
 .step{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 h2{font-size:17px;margin:0;font-weight:600;text-wrap:balance}
@@ -79,6 +89,12 @@ textarea{font-family:var(--f-doc);font-size:14px;min-height:150px;resize:vertica
 .file{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .file b{color:var(--ink);font-weight:500;overflow-wrap:anywhere}
 .file .bad{color:var(--err)}
+.filebox{display:grid;gap:8px;min-width:0}
+.file-error{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--err-soft);color:var(--ink);overflow-wrap:anywhere}
+.file-error:empty{padding:0;background:none}
+.drop[aria-disabled="true"]{opacity:.55;cursor:default}
+main[data-busy="parse"] > :not(#methodReview):not(#batchOut){opacity:.5}
+main.no-report > :is(#sheetBox,#findings,#manualBox,#aiBox,#docBanners){display:none}
 dl.rules{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:13px}
 dl.rules dt{color:var(--muted)}
 dl.rules dd{margin:0;font-family:var(--f-mono);font-size:12.5px;text-align:right;overflow-wrap:anywhere}
@@ -161,14 +177,14 @@ td.ref{font-family:var(--f-doc);font-size:13.5px;min-width:220px;overflow-wrap:a
 tr.has-decide td{border-bottom:0}
 tr.decide-row td{padding-top:0}
 tr.decide-row .decide{margin-top:0}
-.banner{font-size:13px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink)}
+.banner{font-size:13px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink);overflow-wrap:anywhere;min-width:0}
 .banner b{font-weight:600}
 .banner.warn{background:var(--warn-soft)}
 .banner.err{background:var(--err-soft)}
 .banner.big{font-size:14px;border-left:4px solid var(--accent)}
 .hidden-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .profile-out{display:grid;gap:8px}
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;width:max-content;max-width:calc(100% - 32px);overflow-wrap:anywhere}
 /* экран подтверждения методички */
 .mr-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
 .mr-sum div{background:var(--surface-2);border-radius:8px;padding:8px 10px;display:grid}
@@ -202,6 +218,8 @@ fieldset.conflict label{color:var(--ink);display:flex;gap:8px;align-items:flex-s
 .proto-doc h1{font-family:var(--f-display);font-size:20px;margin:0}
 .proto-doc h2{font-size:16px;margin-top:6px}
 .proto-doc table{font-size:13px}
+.proto-doc td{overflow-wrap:anywhere}
+@media (max-width:640px){.protocol{padding:16px}}
 .proto-meta th{width:180px;color:var(--muted)}
 .proto-stamp{font-weight:600;border:2px solid currentColor;border-radius:6px;padding:8px 12px;margin:0;justify-self:start}
 .sign{margin-top:24px;display:grid;gap:18px;font-size:14px}
@@ -210,7 +228,7 @@ body.show-protocol .grid{display:none}
 @media print{
   :root,:root[data-theme="dark"]{--ground:#fff;--surface:#fff;--surface-2:#f2f2f2;--ink:#000;--muted:#444;--line:#999;--accent:#000;--accent-soft:#eee;--err:#000;--err-soft:#fff;--warn:#000;--warn-soft:#fff;--ok:#000;--ok-soft:#fff}
   body{background:#fff;color:#000;padding:0;font-size:12pt}
-  header.top,aside,.toast,.no-print,.modal-back,.decide,#aiRun,#aiStop,.actions .btn{display:none!important}
+  header.top,aside,.toast,.no-print,.modal-back,.decide,#aiRun,#aiStop,.actions .btn,.price,.pricing{display:none!important}
   body.show-protocol .grid{display:none!important}
   body:not(.show-protocol) #protocolView{display:none!important}
   .protocol{border:0;padding:0}
@@ -226,9 +244,19 @@ body.show-protocol .grid{display:none}
   <div class="brand"><b>Qalyp</b><span>ИИ-нормоконтроль студенческих работ: ИИ читает, код измеряет, решает человек</span></div>
   <div class="top-right">
     <span class="pill">Файл обрабатывается в браузере</span>
+    <button class="switch" id="pricingBtn" type="button" aria-expanded="false" aria-controls="pricingPanel">Тарифы</button>
     <label class="switch"><input type="checkbox" id="reviewerMode"><span>Режим нормоконтролёра</span></label>
   </div>
 </header>
+<section class="banner pricing" id="pricingPanel" aria-labelledby="h-pricing" hidden>
+  <h2 id="h-pricing">Тарифы</h2>
+  <p><b>Сейчас все функции открыты: Qalyp в пилоте.</b></p>
+  <ul>
+    <li>Бесплатно — проверка оформления по профилю вуза.</li>
+    <li>Полный отчёт (ИИ, источники, исправленный файл) — <span class="nw">990 ₸</span> (гипотеза).</li>
+    <li>Для вуза — лицензия <span class="nw">2 500–5 000 ₸</span> за студента в год: профиль методички, пакетная проверка группы, протокол нормоконтроля (гипотеза).</li>
+  </ul>
+</section>
 
 <div class="grid">
 <aside>
@@ -272,7 +300,7 @@ body.show-protocol .grid{display:none}
       <small>или нажмите, чтобы выбрать файл</small>
     </div>
     <input class="hidden-input" type="file" id="docFile" accept=".docx" tabindex="-1" aria-hidden="true">
-    <div class="file" id="fileInfo"></div>
+    <div class="filebox"><div class="file" id="fileInfo"></div><div class="file-error" id="fileError" role="alert"></div></div>
     <button class="btn link" id="loadSample" type="button">Открыть пример курсовой</button>
     <p class="note" id="sampleNote">Пример создан для демонстрации: в нём специально допущены ошибки оформления, пропущены элементы введения, а в список источников добавлена запись для проверки сверки с базами.</p>
   </section>
@@ -282,7 +310,7 @@ body.show-protocol .grid{display:none}
   <section class="panel" id="methodReview" aria-labelledby="h-mr" hidden></section>
   <section class="summary" id="summary" aria-label="Итог проверки"></section>
   <div id="docBanners"></div>
-  <section class="panel" aria-labelledby="h-sheet">
+  <section class="panel" id="sheetBox" aria-labelledby="h-sheet">
     <h2 id="h-sheet">Лист и основной текст</h2>
     <div class="sheetrow">
       <div class="sheet" id="sheet"></div>
@@ -296,6 +324,7 @@ body.show-protocol .grid{display:none}
       <div>
         <h2 id="h-ai">Смысл и источники <span class="ai-badge">ИИ</span></h2>
         <p class="note" style="margin-top:4px">ИИ читает введение и заключение: есть ли актуальность, цель, задачи, объект, предмет, методы и отвечает ли заключение на задачи. Список источников сервер сверяет с открытыми базами (Crossref, OpenAlex, adilet), а ИИ отмечает записи, которые стоит открыть и сверить вручную.</p>
+        <p class="note price" id="aiPrice"></p>
       </div>
       <div class="actions">
         <button class="btn primary" id="aiRun" type="button" disabled>Запустить ИИ-проверку</button>
@@ -324,7 +353,9 @@ body.show-protocol .grid{display:none}
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="sr-only" id="srStatus" role="status" aria-live="polite"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- JSZip: сначала копия с сервера Qalyp (из node_modules). Если её нет (страница открыта как файл),
+     90-init.js грузит jszip 3.10.1 с cdnjs с проверкой хеша (integrity) — см. UI_JSZIP_CDN. -->
+<script src="/vendor/jszip.min.js"></script>
 <script>
 /*@@BUNDLE@@*/
 </script>

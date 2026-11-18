@@ -39,7 +39,7 @@ function methodButtonsState() {
   const why = methodUnavailable(), running = !!methodCurrent;
   $("methodRun").disabled = running || !!why;
   $("methodStop").hidden = !running;
-  if (!running && !methodMsgSet) $("methodStatus").textContent = why;
+  if (!running && !methodMsgSet) uiSetText($("methodStatus"), why);
 }
 
 // ---------- чтение методички ----------
@@ -54,11 +54,15 @@ function methodFileBuf(f) {
 async function methodReadFile(f) {
   if (/\.pdf$/i.test(f.name)) return methodStatus("PDF программа не читает: откройте его, скопируйте текст и вставьте в поле.", "warn");
   if (/\.doc$/i.test(f.name)) return methodStatus("Файл .doc программа не читает: откройте его в Word и сохраните как .docx.", "warn");
+  if (f.size > UI_MAX_FILE) return methodStatus("Файл больше 30 МБ — программа такой не читает. Вставьте в поле только разделы об оформлении.", "warn");
   try {
     let text;
     if (/\.txt$/i.test(f.name)) text = await methodFileText(f);
     else if (/\.docx$/i.test(f.name)) {
-      const D = await readDocx(await methodFileBuf(f));
+      const buf = await methodFileBuf(f);
+      const xml = await uiDocxXmlSize(buf);
+      if (xml !== null && xml > UI_MAX_XML) return methodStatus("Текст методички после распаковки больше 50 МБ — программа такой файл не читает. Вставьте в поле только разделы об оформлении.", "warn");
+      const D = await readDocx(buf);
       text = Array.from(D.docXml.getElementsByTagName("w:p")).map((p) => Array.from(p.getElementsByTagName("w:t")).map((t) => t.textContent).join("")).filter((s) => s.trim()).join("\n");
     } else return methodStatus("Нужен файл .docx или .txt.", "warn");
     $("methodText").value = text;
@@ -142,7 +146,7 @@ function methodPrepare(j, text) {
   const rv = { rules, title: uiStr(doc.title, 160), workTypes, workType: workTypes[0] || "course",
     chars: Number.isInteger(j.chars) ? j.chars : text.length, sentChars: text.length,
     methodHash: typeof j.methodHash === "string" && /^[0-9a-f]{64}$/i.test(j.methodHash) ? j.methodHash.toLowerCase() : null,
-    promptVersion: uiStr(j.promptVersion, 40), model: uiStr(j.model, 80), enabled: {}, edits: {}, choice: {}, errors: {}, conflictSig: null };
+    promptVersion: uiStr(j.promptVersion, 40), model: uiStr(j.model, 80), cached: j.cached === true, enabled: {}, edits: {}, choice: {}, errors: {}, conflictSig: null };
   // По умолчанию применяются только правила с найденной цитатой
   for (const r of rules) if (r.check !== "manual") rv.enabled[r.id] = r.quoteFound;
   return rv;
@@ -244,7 +248,8 @@ function methodRenderReview(focus = false) {
   box.innerHTML = `
     <div><div class="step">Экран подтверждения</div>
       <h2 id="h-mr" tabindex="-1">Правила из методички <span class="ai-badge">Вывод ИИ</span></h2>
-      <p class="note" style="margin-top:4px">Правила выписал ИИ${rv.model ? " (" + esc(rv.model) + ")" : ""}${rv.title ? ` из документа «${esc(rv.title)}»` : ""}. Сверьте цитаты и значения: ИИ может ошибаться. Профиль начнёт работать только после кнопки «Применить профиль».</p></div>
+      <p class="note" style="margin-top:4px">Правила выписал ИИ${rv.model ? " (" + esc(rv.model) + ")" : ""}${rv.title ? ` из документа «${esc(rv.title)}»` : ""}. Сверьте цитаты и значения: ИИ может ошибаться. Профиль начнёт работать только после кнопки «Применить профиль».</p>
+      ${rv.cached ? `<p class="note cached">${esc(AI_CACHED_NOTE)}</p>` : ""}</div>
     <div class="mr-sum" id="mrSum"></div>
     <div class="actions"><label for="mrWork">Вид работы</label><select id="mrWork" style="width:auto">${types.map((w) => `<option value="${esc(w)}"${w === rv.workType ? " selected" : ""}>${esc(UI_WORK[w])}</option>`).join("")}</select></div>
     <div id="mrConflicts" style="display:grid;gap:8px"></div>
@@ -261,7 +266,7 @@ function methodRenderReview(focus = false) {
 function methodRefresh() {
   const rv = state.method; if (!rv || !$("mrApply")) return;
   const plan = methodPlan(rv);
-  for (const r of rv.rules) { const el = $("mrErr-" + r.id); if (el) el.textContent = (rv.enabled[r.id] && rv.errors[r.id]) || ""; }
+  for (const r of rv.rules) uiSetText($("mrErr-" + r.id), (rv.enabled[r.id] && rv.errors[r.id]) || "");
   const sig = JSON.stringify(plan.conflicts.map((c) => [c.param, c.rules.map((r) => [r.id, methodEff(rv, r)])]));
   if (sig !== rv.conflictSig) { rv.conflictSig = sig; $("mrConflicts").innerHTML = methodConflictsHtml(rv, plan); }
   $("mrSum").innerHTML = methodSumHtml(rv);
