@@ -43,7 +43,13 @@ const refs = items.map((r, i) => ({ n: i + 1, text: r.text }));
 
 console.log(`Записей: ${items.length} (настоящих ${items.filter((r) => r.label === "real").length}, выдуманных ${items.filter((r) => r.label === "fabricated").length})`);
 const t0 = Date.now();
-const db = await lookupRefs(refs);
+// Пачками по 40, как список литературы одной работы; срок на пачку — 120 с
+const db = [];
+for (let i = 0; i < refs.length; i += 40) {
+  const part = await lookupRefs(refs.slice(i, i + 40), { deadlineMs: 120000 });
+  db.push(...(Array.isArray(part) ? part : part.items));
+  console.log(`базы: ${Math.min(i + 40, refs.length)}/${refs.length}`);
+}
 const tDb = Date.now() - t0;
 let aiRes = null, tAi = 0;
 if (ai) {
