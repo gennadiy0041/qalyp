@@ -1,0 +1,19 @@
+{
+  "page.margin_left_mm":    { "t": "number", "min": 5, "max": 50, "field": "margins.left",   "label": "Левое поле, мм" },
+  "page.margin_right_mm":   { "t": "number", "min": 5, "max": 50, "field": "margins.right",  "label": "Правое поле, мм" },
+  "page.margin_top_mm":     { "t": "number", "min": 5, "max": 50, "field": "margins.top",    "label": "Верхнее поле, мм" },
+  "page.margin_bottom_mm":  { "t": "number", "min": 5, "max": 50, "field": "margins.bottom", "label": "Нижнее поле, мм" },
+  "page.number_position":   { "t": "enum", "of": ["bottom-center", "bottom-right", "top-center", "top-right"], "field": "pageNum", "label": "Номер страницы" },
+  "text.font":              { "t": "string", "field": "font", "alt": "fontAlt", "label": "Шрифт" },
+  "text.size_pt":           { "t": "number", "min": 8, "max": 20, "field": "size", "rangeMin": "sizeMin", "rangeMax": "sizeMax", "label": "Кегль, пт" },
+  "text.line_spacing":      { "t": "number", "min": 1, "max": 3, "field": "line", "label": "Межстрочный интервал" },
+  "text.indent_cm":         { "t": "number", "min": 0, "max": 3, "field": "indent", "label": "Абзацный отступ, см" },
+  "text.align":             { "t": "enum", "of": ["both", "left"], "field": "align", "label": "Выравнивание" },
+  "struct.required":        { "t": "list", "of": ["toc", "intro", "concl", "refs", "app", "abbr"], "field": "requiredSections", "label": "Обязательные разделы" },
+  "struct.heading_centered":{ "t": "bool", "field": "structCentered", "label": "Заголовки разделов по центру" },
+  "struct.heading_upper":   { "t": "bool", "field": "structUpper", "label": "Заголовки разделов прописными" },
+  "struct.new_page":        { "t": "bool", "field": "newPage", "label": "Раздел с новой страницы" },
+  "refs.min_count":         { "t": "number", "min": 0, "max": 300, "int": true, "field": "minRefs", "label": "Минимум источников" },
+  "refs.fresh_years":       { "t": "number", "min": 1, "max": 30, "int": true, "field": "freshYears", "label": "Свежие источники — за последние N лет" },
+  "refs.fresh_share":       { "t": "number", "min": 0, "max": 1, "field": "freshShare", "label": "Доля свежих источников" }
+}
