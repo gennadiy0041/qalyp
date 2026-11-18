@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.*
+tests/.last-*.json
+tests/.tmp/
+eval/out/
+*.log
