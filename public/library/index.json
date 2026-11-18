@@ -1,0 +1,82 @@
+{
+  "note": "Профили собраны ИИ из открытых методичек вузов; вузами не утверждены. Перед применением их проверяет человек.",
+  "items": [
+    {
+      "id": "zhubanov_2024",
+      "university": "Актюбинский региональный университет им. К. Жубанова, Актобе",
+      "title": "Methodological guidelines on completing the graduation project (утверждено решением Учёного совета, протокол № 14 от 30.11.2024, заменяет версию 6.0)",
+      "year": "2024",
+      "url": "https://zhubanov.edu.kz/media/uploads/tkuanyshev/2025/07/23/18-methodological-guidelines-on-completing-the-graduation-project.pdf",
+      "language": "en (английская версия документа вуза)",
+      "rules": 101,
+      "code": 14,
+      "builtAt": "2026-11-18T15:06:04.249Z"
+    },
+    {
+      "id": "almau_2022",
+      "university": "Алматы Менеджмент Университет (AlmaU), Алматы",
+      "title": "П-АКД-19 «Правила оформления письменных работ», редакция 1 (введены в действие 27.12.2022)",
+      "year": "2022",
+      "url": "https://almau.edu.kz/wp-content/uploads/2023/06/Pravila_oformleniya_pismennyh_rabot_21.pdf",
+      "language": "ru",
+      "rules": 111,
+      "code": 13,
+      "builtAt": "2026-11-18T15:01:29.234Z"
+    },
+    {
+      "id": "kaznai_2022",
+      "university": "Казахская национальная академия искусств им. Т. Жургенова, Алматы",
+      "title": "П 017-1.106-2022 «Положение о выполнении дипломных работ (проектов)», редакция № 4 от 31.10.2022",
+      "year": "2022",
+      "url": "https://kaznai.kz/wp-content/uploads/2023/03/%D0%9F%D0%BE%D0%BB%D0%BE%D0%B6-%D0%BE-%D0%B2%D1%8B%D0%BF%D0%BE%D0%BB%D0%BD%D0%BE%D0%BB%D0%BD%D0%B5%D0%BD%D0%B8%D0%B8-%D0%B4%D0%B8%D0%BF%D0%BB%D0%BE%D0%BC%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82-%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D1%80%D1%83%D1%81.-1.pdf",
+      "language": "ru",
+      "rules": 85,
+      "code": 13,
+      "builtAt": "2026-11-18T15:01:11.803Z"
+    },
+    {
+      "id": "keu_2025",
+      "university": "Карагандинский университет Казпотребсоюза (КарУ Казпотребсоюза), Караганда",
+      "title": "Методические указания по выполнению дипломных проектов, КарУ Казпотребсоюза-МУ-126-2025 (версия 1, 2025)",
+      "year": "2025",
+      "url": "https://keu.kz/attachments/article/6597/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5%20%D1%83%D0%BA%D0%B0%D0%B7%D0%B0%D0%BD%D0%B8%D1%8F%20%D0%BF%D0%BE%20%D0%B2%D1%8B%D0%BF%D0%BE%D0%BB%D0%BD%D0%B5%D0%BD%D0%B8%D1%8E%20%D0%B4%D0%B8%D0%BF%D0%BB%D0%BE%D0%BC%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D0%BE%D0%B2%202025%D0%B3..pdf",
+      "language": "ru",
+      "rules": 95,
+      "code": 14,
+      "builtAt": "2026-11-18T15:01:12.457Z"
+    },
+    {
+      "id": "ksu_kostanay_2020",
+      "university": "Костанайский региональный университет им. А. Байтурсынова, Костанай",
+      "title": "Методическая инструкция МИ 025-2020 «Требования к выполнению, оформлению и защите курсовых и дипломных работ (проектов)» (утв. приказом ректора от 20.02.2020 № 49 ОД)",
+      "year": "2020",
+      "url": "https://md.ksu.edu.kz/pluginfile.php/113310/block_html/content/mi-025-2020-trebovaniya_po_kursovym_i_diplomnym.pdf",
+      "language": "ru",
+      "rules": 107,
+      "code": 11,
+      "builtAt": "2026-11-18T15:03:44.282Z"
+    },
+    {
+      "id": "mnu_kaz_2022",
+      "university": "Университет Maqsut Narikbayev (M. Narikbayev KAZGUU University), Международная школа экономики, Астана",
+      "title": "Бакалаврлық дипломдық жұмыс / жобаны орындау жөніндегі нұсқаулық (Руководство по выполнению бакалаврской дипломной работы/проекта, ОП экономики, бизнеса и МО), 2022",
+      "year": "2022",
+      "url": "https://mnu.kz/wp-content/uploads/2024/02/kaz-ise-bachelor-thesis-guidelines-for-bba-and-ir.pdf",
+      "language": "kk",
+      "rules": 38,
+      "code": 5,
+      "builtAt": "2026-11-18T15:02:20.551Z"
+    },
+    {
+      "id": "satbayev_2023",
+      "university": "Satbayev University (КазНИТУ им. К.И. Сатпаева), Алматы",
+      "title": "ST KazNRTU-09-2023 Educational works. General requirements for constructing, presenting, designing and the content of textual and graphic material (стандарт организации, редакция 3, утверждён 20.04.2023 № 173-Д)",
+      "year": "2023",
+      "url": "https://official.satbayev.university/download/document/37179/ST%20KazNRTU%2009-2023.%20Educational%20works.%20General%20requirements%20for%20constructing,%20presenting,%20designing%20and%20the%20content%20of%20textual%20and%20graphic%20material.pdf",
+      "language": "en (официальный английский текст стандарта; русский оригинал в открытом доступе не найден)",
+      "rules": 123,
+      "code": 11,
+      "builtAt": "2026-11-18T15:04:03.827Z"
+    }
+  ]
+}

@@ -21,7 +21,8 @@ const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
 const ids = opt("--ids", "") ? opt("--ids").split(",") : null;
 const runs = +opt("--runs", "1");
-const outFile = opt("--out", path.join(root, "eval", "out", "method.json"));
+const fromLibrary = args.includes("--from-library");
+const outFile = opt("--out", path.join(root, "eval", "out", fromLibrary ? "method-library.json" : "method.json"));
 
 const { extractRules } = await import(pathToFileURL(path.join(root, "server", "ai.js")).href);
 
@@ -114,7 +115,11 @@ for (const id of docs) {
   for (let run = 1; run <= runs; run++) {
     const t0 = Date.now();
     let pred, error = null;
-    try { pred = await extractRules(text, { noCache: true }); } catch (e) { error = e.code || e.message; }
+    try {
+      // --from-library: оценить уже собранные профили библиотеки (public/library), без нового вызова ИИ
+      if (fromLibrary) pred = JSON.parse(fs.readFileSync(path.join(root, "public", "library", id + ".json"), "utf8")).data;
+      else pred = await extractRules(text, { noCache: true });
+    } catch (e) { error = e.code || e.message; }
     const ms = Date.now() - t0;
     if (error) { results.push({ id, run, error, ms }); console.log(id, run, "ОШИБКА", error); continue; }
     const s = scoreDoc(gold, pred, text);

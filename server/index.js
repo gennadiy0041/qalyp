@@ -218,7 +218,8 @@ export function createApp({
   app.use(express.static(publicDir, {
     index: "index.html",
     setHeaders(res, file) {
-      if (file.endsWith(".html")) res.set("Cache-Control", "no-cache");
+      // html и библиотека профилей обновляются вместе с версией — без устаревших копий в кэше браузера
+      if (file.endsWith(".html") || file.endsWith(".json")) res.set("Cache-Control", "no-cache");
     },
   }));
 
